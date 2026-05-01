@@ -70,8 +70,8 @@ export default function ProductDetailScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={handleDelete} style={[styles.iconBtn, { backgroundColor: '#FEE2E2' }]}>
-          <Ionicons name="trash-outline" size={20} color={colors.destructive} />
+        <TouchableOpacity onPress={() => router.back()} style={[styles.iconBtn, { backgroundColor: colors.secondary }]}>
+          <Ionicons name="arrow-forward" size={20} color={colors.foreground} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
           {product.name}
@@ -173,14 +173,24 @@ export default function ProductDetailScreen() {
           </View>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.editFullBtn, { backgroundColor: colors.primary }]}
-          onPress={handleEdit}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="create-outline" size={20} color={colors.primaryForeground} />
-          <Text style={[styles.editBtnText, { color: colors.primaryForeground }]}>تعديل المنتج</Text>
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={[styles.editFullBtn, { backgroundColor: colors.primary, flex: 1 }]}
+            onPress={handleEdit}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="create-outline" size={20} color={colors.primaryForeground} />
+            <Text style={[styles.editBtnText, { color: colors.primaryForeground }]}>تعديل</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.deleteBtn, { backgroundColor: '#FEE2E2', borderColor: colors.destructive }]}
+            onPress={handleDelete}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="trash-outline" size={20} color={colors.destructive} />
+            <Text style={[styles.editBtnText, { color: colors.destructive }]}>حذف</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -358,6 +368,11 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     lineHeight: 22,
   },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
   editFullBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,7 +380,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 14,
-    marginTop: 4,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   editBtnText: {
     fontSize: 16,

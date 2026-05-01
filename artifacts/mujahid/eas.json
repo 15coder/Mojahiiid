@@ -7,23 +7,23 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "22.0.0",
-      "pnpm": "10",
+      "node": "22.14.0",
+      "pnpm": "10.26.1",
       "android": {
         "buildType": "apk"
       }
     },
     "preview": {
       "distribution": "internal",
-      "node": "22.0.0",
-      "pnpm": "10",
+      "node": "22.14.0",
+      "pnpm": "10.26.1",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
-      "node": "22.0.0",
-      "pnpm": "10",
+      "node": "22.14.0",
+      "pnpm": "10.26.1",
       "android": {
         "buildType": "app-bundle"
       }

@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
 import {
   Alert,
   Platform,
