@@ -20,6 +20,11 @@ export interface AppSettings {
   exchangeRate: number;
   biometricEnabled: boolean;
   darkMode: 'light' | 'dark' | 'system';
+  themeId: string;
+  appName: string;
+  pinEnabled: boolean;
+  pinCode: string;
+  securityKey: string;
 }
 
 export type TrendDirection = 'up' | 'down' | 'neutral';

@@ -1,5 +1,6 @@
+import { Image } from 'expo-image';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useColors } from '@/hooks/useColors';
 
@@ -18,19 +19,17 @@ export function PlaceholderImage({ size = 80, style }: Props) {
         {
           width: size,
           height: size,
-          borderRadius: size * 0.12,
+          borderRadius: size * 0.22,
           backgroundColor: colors.secondary,
-          borderColor: colors.border,
         },
         style,
       ]}
     >
-      <Text style={[styles.letter, { fontSize: size * 0.45, color: colors.primary }]}>
-        م
-      </Text>
-      <Text style={[styles.label, { fontSize: size * 0.13, color: colors.silver }]}>
-        مجاهد
-      </Text>
+      <Image
+        source={require('@/assets/images/icon.png')}
+        style={{ width: size * 0.75, height: size * 0.75 }}
+        contentFit="contain"
+      />
     </View>
   );
 }
@@ -39,15 +38,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-  },
-  letter: {
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'center',
-  },
-  label: {
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'center',
-    letterSpacing: 0.5,
+    overflow: 'hidden',
   },
 });

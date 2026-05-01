@@ -9,7 +9,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
-import { I18nManager, Platform } from 'react-native';
+import { Alert, I18nManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import { CategoriesProvider } from '@/context/CategoriesContext';
 import { ProductsProvider } from '@/context/ProductsContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
+import PinScreen from '@/app/pin';
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
@@ -29,7 +30,7 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { isLocked, unlock, isLoading } = useSettings();
+  const { settings, isLocked, unlock, isLoading } = useSettings();
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -41,32 +42,49 @@ function RootLayoutNav() {
   if (isLoading) return null;
 
   if (isLocked) {
-    return <BiometricLock onUnlock={unlock} />;
+    if (settings.pinEnabled && settings.pinCode) {
+      return (
+        <PinScreen
+          onUnlock={() => {}}
+          onRecover={() => {
+            Alert.prompt
+              ? Alert.prompt(
+                  'مفتاح الأمان',
+                  'أدخل مفتاح الأمان لإعادة تعيين PIN:',
+                  (key) => {
+                    if (key === settings.securityKey) {
+                      Alert.prompt(
+                        'PIN الجديد',
+                        'أدخل PIN جديداً (4 أرقام):',
+                        (newPin) => {
+                          if (/^\d{4}$/.test(newPin)) {
+                            // will update through settings
+                          }
+                        },
+                        'plain-text'
+                      );
+                    } else {
+                      Alert.alert('خطأ', 'مفتاح الأمان غير صحيح');
+                    }
+                  },
+                  'plain-text'
+                )
+              : undefined;
+          }}
+        />
+      );
+    }
+    return <BiometricLock onUnlock={() => unlock()} />;
   }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="product/add"
-        options={{ presentation: 'modal', headerShown: false }}
-      />
-      <Stack.Screen
-        name="product/[id]"
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="product/edit/[id]"
-        options={{ presentation: 'modal', headerShown: false }}
-      />
-      <Stack.Screen
-        name="scanner"
-        options={{ presentation: 'fullScreenModal', headerShown: false }}
-      />
-      <Stack.Screen
-        name="contact"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="product/add" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="product/edit/[id]" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="scanner" options={{ presentation: 'fullScreenModal', headerShown: false }} />
+      <Stack.Screen name="contact" options={{ headerShown: false }} />
     </Stack>
   );
 }

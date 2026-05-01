@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 import Animated, {
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -133,17 +132,7 @@ function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
 }
 
 export function ProductCard({ product, index, onPress }: Props) {
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 50)
-        .springify()
-        .damping(18)
-        .stiffness(120)
-        .withInitialValues({ transform: [{ translateY: 30 }], opacity: 0 })}
-    >
-      <ProductCardInner product={product} onPress={onPress} />
-    </Animated.View>
-  );
+  return <ProductCardInner product={product} onPress={onPress} />;
 }
 
 const styles = StyleSheet.create({

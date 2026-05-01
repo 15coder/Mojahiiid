@@ -3,8 +3,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -25,6 +25,7 @@ import { useSettings } from '@/context/SettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useColors } from '@/hooks/useColors';
 import { usdToSyp, sypToUsd } from '@/utils/priceUtils';
+import { consumeScanResult } from '@/utils/scanResult';
 
 async function saveImageLocally(uri: string): Promise<string> {
   if (Platform.OS === 'web') return uri;
@@ -48,6 +49,15 @@ export default function AddProductScreen() {
 
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState(params.barcode ?? '');
+
+  useFocusEffect(
+    useCallback(() => {
+      const result = consumeScanResult();
+      if (result) {
+        setBarcode(result);
+      }
+    }, [])
+  );
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [costSYP, setCostSYP] = useState('');
   const [costUSD, setCostUSD] = useState('');
@@ -208,7 +218,7 @@ export default function AddProductScreen() {
           <View style={styles.barcodeRow}>
             <TouchableOpacity
               style={[styles.scanBtn, { backgroundColor: colors.secondary }]}
-              onPress={() => router.push({ pathname: '/scanner', params: { returnTo: 'add' } })}
+              onPress={() => router.push('/scanner?returnTo=add')}
             >
               <Ionicons name="scan-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
