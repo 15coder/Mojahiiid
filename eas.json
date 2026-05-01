@@ -1,12 +1,35 @@
 {
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "22.0.0",
+      "pnpm": "10",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "22.0.0",
+      "pnpm": "10",
+      "android": {
+        "buildType": "apk"
+      }
     },
+    "production": {
+      "node": "22.0.0",
+      "pnpm": "10",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
     "production": {}
   }
 }
