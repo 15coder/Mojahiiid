@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React, { useCallback } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -70,7 +70,11 @@ function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
             contentFit="cover"
           />
         ) : (
-          <PlaceholderImage size={72} />
+          <PlaceholderImage
+            size={72}
+            categoryIcon={category?.icon}
+            categoryColor={category?.color}
+          />
         )}
       </View>
 

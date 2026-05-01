@@ -25,6 +25,7 @@ export interface AppSettings {
   pinEnabled: boolean;
   pinCode: string;
   securityKey: string;
+  appIconUri?: string;
 }
 
 export type TrendDirection = 'up' | 'down' | 'neutral';

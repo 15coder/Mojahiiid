@@ -4,11 +4,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -20,7 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/context/CategoriesContext';
@@ -44,6 +46,8 @@ const CAT_COLOR_OPTIONS = [
   '#8B5CF6', '#F97316', '#14B8A6', '#6366F1', '#84CC16', '#E11D48',
 ];
 
+const DEV_CODE = 'Dev8Nida';
+
 type ActiveModal =
   | 'none'
   | 'addCategory'
@@ -52,7 +56,8 @@ type ActiveModal =
   | 'appName'
   | 'pinSetup'
   | 'pinRecover'
-  | 'securityKey';
+  | 'regenerateKey'
+  | 'appCustomize';
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -79,6 +84,12 @@ export default function SettingsScreen() {
 
   const [recoverKey, setRecoverKey] = useState('');
   const [recoverNewPin, setRecoverNewPin] = useState('');
+
+  // App Customize state
+  const [devCode, setDevCode] = useState('');
+  const [devCodeVerified, setDevCodeVerified] = useState(false);
+  const [customAppName, setCustomAppName] = useState(settings.appName || 'مجاهد للتجارة');
+  const [customIconUri, setCustomIconUri] = useState<string | undefined>(settings.appIconUri);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const currentTheme = getThemeById(settings.themeId || 'ocean');
@@ -249,24 +260,14 @@ export default function SettingsScreen() {
     setActiveModal('none');
   }
 
-  async function handleRegenerateKey() {
-    Alert.alert(
-      'توليد مفتاح جديد',
-      'سيتم إلغاء المفتاح الحالي وتوليد مفتاح جديد. تأكد من حفظ المفتاح الجديد!',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'توليد',
-          onPress: async () => {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-            let key = '';
-            for (let i = 0; i < 10; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
-            await updateSettings({ securityKey: key });
-            showToast({ message: 'تم توليد مفتاح جديد', type: 'success' });
-          },
-        },
-      ]
-    );
+  async function confirmRegenerateKey() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let key = '';
+    for (let i = 0; i < 10; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
+    await updateSettings({ securityKey: key });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast({ message: 'تم توليد مفتاح جديد', type: 'success' });
+    setActiveModal('none');
   }
 
   async function copySecurityKey() {
@@ -275,6 +276,56 @@ export default function SettingsScreen() {
     }
     showToast({ message: 'تم نسخ المفتاح', type: 'success' });
   }
+
+  function openAppCustomize() {
+    setDevCode('');
+    setDevCodeVerified(false);
+    setCustomAppName(settings.appName || 'مجاهد للتجارة');
+    setCustomIconUri(settings.appIconUri);
+    setActiveModal('appCustomize');
+  }
+
+  function verifyDevCode() {
+    if (devCode.trim() === DEV_CODE) {
+      setDevCodeVerified(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      showToast({ message: 'رمز الموافقة غير صحيح', type: 'error' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }
+
+  async function pickAppIcon() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showToast({ message: 'يلزم إذن الوصول للصور', type: 'error' });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets?.length) {
+      setCustomIconUri(result.assets[0].uri);
+    }
+  }
+
+  async function handleSaveAppCustomize() {
+    if (!customAppName.trim()) {
+      showToast({ message: 'الاسم لا يمكن أن يكون فارغاً', type: 'error' });
+      return;
+    }
+    await updateSettings({ appName: customAppName.trim(), appIconUri: customIconUri });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast({ message: 'تم حفظ تخصيصات التطبيق', type: 'success' });
+    setActiveModal('none');
+  }
+
+  const appIcon = settings.appIconUri
+    ? { uri: settings.appIconUri }
+    : require('@/assets/images/icon.png');
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -287,7 +338,7 @@ export default function SettingsScreen() {
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>الإعدادات</Text>
           <Text style={[styles.pageSubtitle, { color: colors.silver }]}>{settings.appName || 'مجاهد للتجارة'}</Text>
         </View>
-        <Image source={require('@/assets/images/icon.png')} style={styles.headerIcon} contentFit="contain" />
+        <Image source={appIcon} style={styles.headerIcon} contentFit="contain" />
       </View>
 
       <ScrollView
@@ -373,7 +424,7 @@ export default function SettingsScreen() {
               placeholderTextColor={colors.mutedForeground}
             />
           </View>
-          <View style={[styles.rateBadge, { backgroundColor: colors.primary + '18' }]}>
+          <View style={[styles.rateBadge, { backgroundColor: colors.primary + '15', marginTop: 6 }]}>
             <Text style={[styles.rateNote, { color: colors.primary }]}>
               1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س
             </Text>
@@ -468,7 +519,7 @@ export default function SettingsScreen() {
               <Ionicons name="refresh-circle-outline" size={16} color={colors.primary} />
               <Text style={[styles.actionBtnText, { color: colors.primary }]}>استعادة PIN</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.destructive + '15', flex: 1 }]} onPress={handleRegenerateKey}>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.destructive + '15', flex: 1 }]} onPress={() => setActiveModal('regenerateKey')}>
               <Ionicons name="reload-outline" size={16} color={colors.destructive} />
               <Text style={[styles.actionBtnText, { color: colors.destructive }]}>مفتاح جديد</Text>
             </TouchableOpacity>
@@ -534,6 +585,45 @@ export default function SettingsScreen() {
             <Ionicons name="person-outline" size={18} color={colors.primaryForeground} />
           </View>
         </TouchableOpacity>
+
+        {/* ─── App Customization (bottom section) ─── */}
+        <SectionHeader title="تخصيص التطبيق" colors={colors} icon="brush-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.primary + '60', borderWidth: 1.5, gap: 12 }]}>
+          <View style={styles.customizeHeader}>
+            <View style={[styles.customizeBadge, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="shield-checkmark-outline" size={14} color={colors.primary} />
+              <Text style={[styles.customizeBadgeText, { color: colors.primary }]}>يتطلب رمز موافقة</Text>
+            </View>
+            <Text style={[styles.customizeDesc, { color: colors.mutedForeground }]}>
+              تغيير اسم التطبيق وصورة الأيقونة يتطلب إدخال رمز الموافقة المخصص.
+            </Text>
+          </View>
+
+          <View style={styles.customizePreview}>
+            <Image
+              source={settings.appIconUri ? { uri: settings.appIconUri } : require('@/assets/images/icon.png')}
+              style={[styles.customizeIcon, { borderColor: colors.border }]}
+              contentFit="cover"
+            />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.customizeAppName, { color: colors.foreground }]}>
+                {settings.appName || 'مجاهد للتجارة'}
+              </Text>
+              <Text style={[styles.customizeAppSub, { color: colors.mutedForeground }]}>
+                {settings.appIconUri ? 'أيقونة مخصصة' : 'الأيقونة الافتراضية'}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.customizeBtn, { backgroundColor: colors.primary }]}
+            onPress={openAppCustomize}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="create-outline" size={18} color={colors.primaryForeground} />
+            <Text style={[styles.customizeBtnText, { color: colors.primaryForeground }]}>تخصيص الاسم والأيقونة</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* ─── Category Modal (Add/Edit) ─── */}
@@ -652,6 +742,7 @@ export default function SettingsScreen() {
         onClose={() => setActiveModal('none')}
         colors={colors}
         title={settings.pinEnabled ? 'تغيير PIN' : 'تفعيل قفل PIN'}
+        keyboardAware
       >
         <ModalLabel text="أدخل PIN الجديد (4 أرقام)" colors={colors} />
         <TextInput
@@ -686,6 +777,7 @@ export default function SettingsScreen() {
         onClose={() => setActiveModal('none')}
         colors={colors}
         title="استعادة PIN"
+        keyboardAware
       >
         <Text style={[styles.recoverNote, { color: colors.mutedForeground }]}>
           أدخل مفتاح الأمان (10 أحرف) لإعادة تعيين PIN.
@@ -715,25 +807,159 @@ export default function SettingsScreen() {
           <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>إعادة تعيين PIN</Text>
         </TouchableOpacity>
       </BottomSheetModal>
+
+      {/* ─── Regenerate Key Confirmation Modal ─── */}
+      <BottomSheetModal
+        visible={activeModal === 'regenerateKey'}
+        onClose={() => setActiveModal('none')}
+        colors={colors}
+        title="توليد مفتاح أمان جديد"
+      >
+        <View style={[styles.warnBox, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '30' }]}>
+          <Ionicons name="warning-outline" size={22} color={colors.destructive} />
+          <Text style={[styles.warnText, { color: colors.destructive }]}>
+            سيتم إلغاء المفتاح الحالي نهائياً. تأكد من حفظ المفتاح الجديد فور توليده!
+          </Text>
+        </View>
+
+        <View style={[styles.currentKeyBox, { backgroundColor: colors.input, borderColor: colors.border }]}>
+          <Text style={[styles.currentKeyLabel, { color: colors.mutedForeground }]}>المفتاح الحالي</Text>
+          <Text style={[styles.currentKeyValue, { color: colors.foreground }]}>{settings.securityKey}</Text>
+        </View>
+
+        <View style={styles.warnBtns}>
+          <TouchableOpacity
+            style={[styles.modalSaveBtn, { backgroundColor: colors.secondary, flex: 1, marginTop: 8, marginBottom: 4 }]}
+            onPress={() => setActiveModal('none')}
+          >
+            <Text style={[styles.modalSaveBtnText, { color: colors.foreground }]}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modalSaveBtn, { backgroundColor: colors.destructive, flex: 1, marginTop: 8, marginBottom: 4 }]}
+            onPress={confirmRegenerateKey}
+          >
+            <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>توليد مفتاح جديد</Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheetModal>
+
+      {/* ─── App Customize Modal ─── */}
+      <BottomSheetModal
+        visible={activeModal === 'appCustomize'}
+        onClose={() => setActiveModal('none')}
+        colors={colors}
+        title="تخصيص التطبيق"
+        keyboardAware
+      >
+        {!devCodeVerified ? (
+          <>
+            <View style={[styles.devCodeInfo, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
+              <Ionicons name="shield-outline" size={20} color={colors.primary} />
+              <Text style={[styles.devCodeInfoText, { color: colors.primary }]}>
+                أدخل رمز الموافقة للمتابعة
+              </Text>
+            </View>
+            <ModalLabel text="رمز الموافقة" colors={colors} />
+            <TextInput
+              style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, textAlign: 'center', letterSpacing: 3 }]}
+              value={devCode}
+              onChangeText={setDevCode}
+              placeholder="أدخل الرمز هنا"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+            />
+            <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={verifyDevCode}>
+              <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>تحقق من الرمز</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Animated.View entering={FadeInDown.duration(350).springify()}>
+              <View style={[styles.verifiedBadge, { backgroundColor: colors.success + '15', borderColor: colors.success + '30' }]}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text style={[styles.verifiedText, { color: colors.success }]}>تم التحقق بنجاح</Text>
+              </View>
+
+              <ModalLabel text="اسم التطبيق الجديد" colors={colors} />
+              <TextInput
+                style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={customAppName}
+                onChangeText={setCustomAppName}
+                placeholder="مجاهد للتجارة"
+                placeholderTextColor={colors.mutedForeground}
+                textAlign="right"
+              />
+
+              <ModalLabel text="أيقونة التطبيق" colors={colors} />
+              <TouchableOpacity
+                style={[styles.iconPickerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                onPress={pickAppIcon}
+                activeOpacity={0.8}
+              >
+                {customIconUri ? (
+                  <Image source={{ uri: customIconUri }} style={styles.iconPreviewImg} contentFit="cover" />
+                ) : (
+                  <Image source={require('@/assets/images/icon.png')} style={styles.iconPreviewImg} contentFit="contain" />
+                )}
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={[styles.iconPickerTitle, { color: colors.foreground }]}>
+                    {customIconUri ? 'تغيير الصورة' : 'اختر صورة من المعرض'}
+                  </Text>
+                  <Text style={[styles.iconPickerSub, { color: colors.mutedForeground }]}>
+                    المقاس المطلوب: 1024 × 1024 بكسل
+                  </Text>
+                </View>
+                <Ionicons name="image-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+
+              <View style={[styles.iconSizeNote, { backgroundColor: colors.muted + '50', borderColor: colors.border }]}>
+                <Ionicons name="information-circle-outline" size={14} color={colors.mutedForeground} />
+                <Text style={[styles.iconSizeNoteText, { color: colors.mutedForeground }]}>
+                  للحصول على أفضل جودة، استخدم صورة مربعة بأبعاد 1024×1024 بكسل بصيغة PNG أو JPG.
+                </Text>
+              </View>
+
+              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveAppCustomize}>
+                <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>حفظ التخصيصات</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </>
+        )}
+      </BottomSheetModal>
     </View>
   );
 }
 
 function BottomSheetModal({
-  visible, onClose, colors, title, children,
+  visible, onClose, colors, title, children, keyboardAware,
 }: {
-  visible: boolean; onClose: () => void; colors: any; title: string; children: React.ReactNode;
+  visible: boolean; onClose: () => void; colors: any; title: string; children: React.ReactNode; keyboardAware?: boolean;
 }) {
+  const content = (
+    <Pressable style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
+      <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+      <Text style={[styles.modalTitle, { color: colors.foreground }]}>{title}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {children}
+      </ScrollView>
+    </Pressable>
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
-          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.modalTitle, { color: colors.foreground }]}>{title}</Text>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {children}
-          </ScrollView>
-        </Pressable>
+        {keyboardAware ? (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.kavSheet}
+          >
+            {content}
+          </KeyboardAvoidingView>
+        ) : (
+          content
+        )}
       </Pressable>
     </Modal>
   );
@@ -799,7 +1025,16 @@ const styles = StyleSheet.create({
   rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rateInput: { flex: 1, height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 18, fontFamily: 'Tajawal_500Medium' },
   saveBtn: { width: 50, height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rateBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
+  rateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginBottom: 2,
+  },
   rateNote: { fontSize: 13, fontFamily: 'Tajawal_500Medium', textAlign: 'center' },
   catRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
   catActions: { flexDirection: 'row', gap: 6 },
@@ -824,8 +1059,38 @@ const styles = StyleSheet.create({
   infoValue: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   infoLabel: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   contactIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  // App customize card
+  customizeHeader: { gap: 8, alignItems: 'flex-end' },
+  customizeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, alignSelf: 'flex-end' },
+  customizeBadgeText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
+  customizeDesc: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 18 },
+  customizePreview: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  customizeIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 1 },
+  customizeAppName: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  customizeAppSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  customizeBtn: { height: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  customizeBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  // Regenerate key modal
+  warnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  warnText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_500Medium', textAlign: 'right', lineHeight: 20 },
+  currentKeyBox: { padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center', gap: 4, marginBottom: 4 },
+  currentKeyLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
+  currentKeyValue: { fontSize: 20, fontFamily: 'Tajawal_700Bold', letterSpacing: 3 },
+  warnBtns: { flexDirection: 'row', gap: 10 },
+  // Dev code modal
+  devCodeInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  devCodeInfoText: { fontSize: 13, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 16, justifyContent: 'center' },
+  verifiedText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
+  iconPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
+  iconPreviewImg: { width: 52, height: 52, borderRadius: 12 },
+  iconPickerTitle: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
+  iconPickerSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', marginTop: 2 },
+  iconSizeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
+  iconSizeNoteText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 17 },
   // Modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  kavSheet: { justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },

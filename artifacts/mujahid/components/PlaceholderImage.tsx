@@ -1,4 +1,4 @@
-import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -7,9 +7,11 @@ import { useColors } from '@/hooks/useColors';
 interface Props {
   size?: number;
   style?: object;
+  categoryIcon?: string;
+  categoryColor?: string;
 }
 
-export function PlaceholderImage({ size = 80, style }: Props) {
+export function PlaceholderImage({ size = 80, style, categoryIcon, categoryColor }: Props) {
   const colors = useColors();
 
   return (
@@ -20,15 +22,17 @@ export function PlaceholderImage({ size = 80, style }: Props) {
           width: size,
           height: size,
           borderRadius: size * 0.22,
-          backgroundColor: colors.secondary,
+          backgroundColor: categoryColor ? categoryColor + '18' : colors.secondary,
+          borderWidth: 1,
+          borderColor: categoryColor ? categoryColor + '30' : colors.border,
         },
         style,
       ]}
     >
-      <Image
-        source={require('@/assets/images/icon.png')}
-        style={{ width: size * 0.75, height: size * 0.75 }}
-        contentFit="contain"
+      <Ionicons
+        name={(categoryIcon as any) || 'cube-outline'}
+        size={size * 0.48}
+        color={categoryColor || colors.mutedForeground}
       />
     </View>
   );

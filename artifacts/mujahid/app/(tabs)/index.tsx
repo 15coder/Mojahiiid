@@ -16,7 +16,7 @@ import {
 import Animated, {
   FadeIn,
   FadeInDown,
-  FadeInRight,
+  FadeInUp,
   LinearTransition,
   useAnimatedStyle,
   useSharedValue,
@@ -45,6 +45,7 @@ export default function ProductsScreen() {
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [showBarcodeSearch, setShowBarcodeSearch] = useState(false);
+  const [animKey, setAnimKey] = useState(0);
   const barcodeInputRef = useRef<TextInput>(null);
   const fabScale = useSharedValue(1);
 
@@ -89,7 +90,7 @@ export default function ProductsScreen() {
     return list;
   }, [query, barcodeQuery, products, activeCategoryId]);
 
-  const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}`;
+  const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}-${animKey}`;
 
   function handleAddPress() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -111,6 +112,7 @@ export default function ProductsScreen() {
   function handleCategorySelect(id: string | null) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveCategoryId(id);
+    setAnimKey((k) => k + 1);
   }
 
   function toggleBarcodeSearch() {
@@ -165,7 +167,7 @@ export default function ProductsScreen() {
           </View>
         </View>
 
-        {/* Barcode search — numbers only */}
+        {/* Barcode search */}
         {showBarcodeSearch && (
           <Animated.View entering={FadeInDown.duration(220).springify()} style={styles.barcodeSearchRow}>
             <Ionicons name="barcode-outline" size={18} color={colors.silver} />
@@ -209,9 +211,8 @@ export default function ProductsScreen() {
           </View>
         )}
 
-        {/* Category tabs — sorted by count */}
+        {/* Category tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryTabs} style={styles.categoryScroll}>
-          {/* All tab */}
           <Pressable
             onPress={() => handleCategorySelect(null)}
             style={[
@@ -225,7 +226,6 @@ export default function ProductsScreen() {
             </View>
           </Pressable>
 
-          {/* Sorted categories */}
           {sortedCategories.map((cat) => {
             const isActive = activeCategoryId === cat.id;
             const count = countByCategory[cat.id] || 0;
@@ -247,7 +247,6 @@ export default function ProductsScreen() {
             );
           })}
 
-          {/* No-category tab */}
           {noCatCount > 0 && (
             <Pressable
               onPress={() => handleCategorySelect(NO_CATEGORY_ID)}
@@ -305,12 +304,12 @@ export default function ProductsScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
             <Animated.View
-              entering={FadeInRight
-                .delay(index * 45)
-                .duration(320)
+              entering={FadeInUp
+                .delay(index * 35)
+                .duration(350)
                 .springify()
-                .damping(18)
-                .stiffness(140)}
+                .damping(20)
+                .stiffness(160)}
               layout={LinearTransition.springify().damping(20)}
             >
               <ProductCard
