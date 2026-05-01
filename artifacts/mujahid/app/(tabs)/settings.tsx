@@ -4,12 +4,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -46,50 +44,42 @@ const CAT_COLOR_OPTIONS = [
   '#8B5CF6', '#F97316', '#14B8A6', '#6366F1', '#84CC16', '#E11D48',
 ];
 
-const DEV_CODE = 'Dev8Nida';
-
 type ActiveModal =
   | 'none'
   | 'addCategory'
   | 'editCategory'
   | 'theme'
-  | 'appName'
   | 'pinSetup'
-  | 'pinRecover'
-  | 'regenerateKey'
-  | 'appCustomize';
+  | 'disablePinVerify'
+  | 'verifyPinForRegen'
+  | 'deleteCat'
+  | 'confirmImport';
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings } = useSettings();
-  const { products, exportData, importData } = useProducts();
+  const { products, exportData, importData, updateAllProductsExchangeRate } = useProducts();
   const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility } = useCategories();
   const { showToast } = useToast();
 
   const [rateInput, setRateInput] = useState(String(settings.exchangeRate));
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [pendingImportJson, setPendingImportJson] = useState('');
 
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [deletingCat, setDeletingCat] = useState<Category | null>(null);
   const [catName, setCatName] = useState('');
   const [catIcon, setCatIcon] = useState(CAT_ICON_OPTIONS[0]);
   const [catColor, setCatColor] = useState(CAT_COLOR_OPTIONS[0]);
 
-  const [appNameInput, setAppNameInput] = useState(settings.appName || 'مجاهد للتجارة');
-
+  // PIN modal state
+  const [currentPinInput, setCurrentPinInput] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-
-  const [recoverKey, setRecoverKey] = useState('');
-  const [recoverNewPin, setRecoverNewPin] = useState('');
-
-  // App Customize state
-  const [devCode, setDevCode] = useState('');
-  const [devCodeVerified, setDevCodeVerified] = useState(false);
-  const [customAppName, setCustomAppName] = useState(settings.appName || 'مجاهد للتجارة');
-  const [customIconUri, setCustomIconUri] = useState<string | undefined>(settings.appIconUri);
+  const [pinError, setPinError] = useState('');
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const currentTheme = getThemeById(settings.themeId || 'ocean');
@@ -100,9 +90,15 @@ export default function SettingsScreen() {
       showToast({ message: 'يرجى إدخال سعر صرف صحيح', type: 'error' });
       return;
     }
+    const oldRate = settings.exchangeRate;
     await updateSettings({ exchangeRate: val });
+    if (val !== oldRate && products.length > 0) {
+      await updateAllProductsExchangeRate(val);
+      showToast({ message: 'تم تحديث سعر الصرف وأسعار جميع المنتجات', type: 'success' });
+    } else {
+      showToast({ message: 'تم تحديث سعر الصرف', type: 'success' });
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast({ message: 'تم تحديث سعر الصرف', type: 'success' });
   }
 
   async function handleToggleBiometric(value: boolean) {
@@ -144,26 +140,23 @@ export default function SettingsScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.length) return;
       const json = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.UTF8 });
-      Alert.alert('تأكيد الاستيراد', 'سيتم استبدال جميع المنتجات الحالية. هل أنت متأكد؟', [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'استيراد',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const count = await importData(json);
-              showToast({ message: `تم استيراد ${count} منتج`, type: 'success' });
-            } catch (e: any) {
-              showToast({ message: e?.message || 'فشل الاستيراد', type: 'error' });
-            }
-          },
-        },
-      ]);
+      setPendingImportJson(json);
+      setActiveModal('confirmImport');
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل فتح الملف', type: 'error' });
     } finally {
       setIsImporting(false);
     }
+  }
+
+  async function confirmImportData() {
+    try {
+      const count = await importData(pendingImportJson);
+      showToast({ message: `تم استيراد ${count} منتج`, type: 'success' });
+    } catch (e: any) {
+      showToast({ message: e?.message || 'فشل الاستيراد', type: 'error' });
+    }
+    setActiveModal('none');
   }
 
   function openAddCat() {
@@ -198,75 +191,84 @@ export default function SettingsScreen() {
     setActiveModal('none');
   }
 
-  async function handleDeleteCat(cat: Category) {
-    Alert.alert('حذف القسم', `حذف "${cat.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteCategory(cat.id);
-          showToast({ message: `تم حذف "${cat.name}"`, type: 'info' });
-        },
-      },
-    ]);
+  function openDeleteCat(cat: Category) {
+    setDeletingCat(cat);
+    setActiveModal('deleteCat');
   }
 
-  async function handleSaveAppName() {
-    if (!appNameInput.trim()) {
-      showToast({ message: 'الاسم لا يمكن أن يكون فارغاً', type: 'error' });
-      return;
-    }
-    await updateSettings({ appName: appNameInput.trim() });
-    showToast({ message: 'تم تغيير الاسم', type: 'success' });
+  async function confirmDeleteCat() {
+    if (!deletingCat) return;
+    await deleteCategory(deletingCat.id);
+    showToast({ message: `تم حذف "${deletingCat.name}"`, type: 'info' });
     setActiveModal('none');
+    setDeletingCat(null);
+  }
+
+  function openPinSetup() {
+    setCurrentPinInput('');
+    setNewPin('');
+    setConfirmPin('');
+    setPinError('');
+    setActiveModal('pinSetup');
+  }
+
+  function openDisablePinVerify() {
+    setCurrentPinInput('');
+    setPinError('');
+    setActiveModal('disablePinVerify');
   }
 
   async function handleSavePin() {
+    if (settings.pinEnabled && currentPinInput !== settings.pinCode) {
+      setPinError('رمز PIN الحالي غير صحيح');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
-      showToast({ message: 'PIN يجب أن يتكون من 4 أرقام', type: 'error' });
+      setPinError('PIN يجب أن يتكون من 4 أرقام');
       return;
     }
     if (newPin !== confirmPin) {
-      showToast({ message: 'كلمتا PIN غير متطابقتين', type: 'error' });
+      setPinError('رمزا PIN غير متطابقَين');
       return;
     }
     await updateSettings({ pinEnabled: true, pinCode: newPin });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showToast({ message: 'تم تفعيل قفل PIN', type: 'success' });
-    setNewPin('');
-    setConfirmPin('');
     setActiveModal('none');
   }
 
   async function handleDisablePin() {
+    if (currentPinInput !== settings.pinCode) {
+      setPinError('رمز PIN غير صحيح');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
     await updateSettings({ pinEnabled: false, pinCode: '' });
     showToast({ message: 'تم تعطيل قفل PIN', type: 'info' });
-  }
-
-  async function handleRecoverPin() {
-    if (recoverKey.trim() !== settings.securityKey) {
-      showToast({ message: 'مفتاح الأمان غير صحيح', type: 'error' });
-      return;
-    }
-    if (recoverNewPin.length !== 4 || !/^\d{4}$/.test(recoverNewPin)) {
-      showToast({ message: 'PIN يجب أن يتكون من 4 أرقام', type: 'error' });
-      return;
-    }
-    await updateSettings({ pinCode: recoverNewPin, pinEnabled: true });
-    showToast({ message: 'تم إعادة تعيين PIN', type: 'success' });
-    setRecoverKey('');
-    setRecoverNewPin('');
     setActiveModal('none');
   }
 
+  function openVerifyPinForRegen() {
+    setCurrentPinInput('');
+    setPinError('');
+    setActiveModal('verifyPinForRegen');
+  }
+
   async function confirmRegenerateKey() {
+    if (settings.pinEnabled) {
+      if (currentPinInput !== settings.pinCode) {
+        setPinError('رمز PIN غير صحيح');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        return;
+      }
+    }
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     let key = '';
     for (let i = 0; i < 10; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
     await updateSettings({ securityKey: key });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast({ message: 'تم توليد مفتاح جديد', type: 'success' });
+    showToast({ message: 'تم توليد مفتاح أمان جديد', type: 'success' });
     setActiveModal('none');
   }
 
@@ -275,52 +277,6 @@ export default function SettingsScreen() {
       await Clipboard.setStringAsync(settings.securityKey);
     }
     showToast({ message: 'تم نسخ المفتاح', type: 'success' });
-  }
-
-  function openAppCustomize() {
-    setDevCode('');
-    setDevCodeVerified(false);
-    setCustomAppName(settings.appName || 'مجاهد للتجارة');
-    setCustomIconUri(settings.appIconUri);
-    setActiveModal('appCustomize');
-  }
-
-  function verifyDevCode() {
-    if (devCode.trim() === DEV_CODE) {
-      setDevCodeVerified(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      showToast({ message: 'رمز الموافقة غير صحيح', type: 'error' });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  }
-
-  async function pickAppIcon() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showToast({ message: 'يلزم إذن الوصول للصور', type: 'error' });
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
-    if (!result.canceled && result.assets?.length) {
-      setCustomIconUri(result.assets[0].uri);
-    }
-  }
-
-  async function handleSaveAppCustomize() {
-    if (!customAppName.trim()) {
-      showToast({ message: 'الاسم لا يمكن أن يكون فارغاً', type: 'error' });
-      return;
-    }
-    await updateSettings({ appName: customAppName.trim(), appIconUri: customIconUri });
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showToast({ message: 'تم حفظ تخصيصات التطبيق', type: 'success' });
-    setActiveModal('none');
   }
 
   const appIcon = settings.appIconUri
@@ -346,21 +302,6 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 60 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* App Name */}
-        <SectionHeader title="اسم التطبيق" colors={colors} icon="text-outline" />
-        <TouchableOpacity
-          style={[styles.card, styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => { setAppNameInput(settings.appName || 'مجاهد للتجارة'); setActiveModal('appName'); }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={18} color={colors.silver} />
-          <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={[styles.rowTitle, { color: colors.foreground }]}>{settings.appName || 'مجاهد للتجارة'}</Text>
-            <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>اضغط لتغيير الاسم</Text>
-          </View>
-          <Ionicons name="create-outline" size={20} color={colors.primary} />
-        </TouchableOpacity>
-
         {/* Theme */}
         <SectionHeader title="ثيم الألوان" colors={colors} icon="color-palette-outline" />
         <TouchableOpacity
@@ -408,7 +349,7 @@ export default function SettingsScreen() {
         {/* Exchange Rate */}
         <SectionHeader title="معدل الصرف" colors={colors} icon="cash-outline" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>سعر الدولار بالليرة السورية</Text>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>سعر الدولار بالليرة السورية — سيتم تحديث أسعار جميع المنتجات</Text>
           <View style={styles.rateRow}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleRateSubmit} activeOpacity={0.8}>
               <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
@@ -440,7 +381,7 @@ export default function SettingsScreen() {
               {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
               <View style={styles.catRow}>
                 <View style={styles.catActions}>
-                  <TouchableOpacity onPress={() => handleDeleteCat(cat)} style={[styles.catAction, { backgroundColor: colors.destructive + '15' }]}>
+                  <TouchableOpacity onPress={() => openDeleteCat(cat)} style={[styles.catAction, { backgroundColor: colors.destructive + '15' }]}>
                     <Ionicons name="trash-outline" size={14} color={colors.destructive} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => openEditCat(cat)} style={[styles.catAction, { backgroundColor: colors.primary + '15' }]}>
@@ -467,69 +408,89 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* PIN Lock */}
-        <SectionHeader title="قفل PIN" colors={colors} icon="lock-closed-outline" />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 10 }]}>
-          <View style={styles.switchRow}>
+        {/* ─── Security Section ─── */}
+        <SectionHeader title="الأمان" colors={colors} icon="shield-checkmark-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
+
+          {/* PIN Lock toggle */}
+          <View style={[styles.secRow, { paddingVertical: 14 }]}>
             <Switch
               value={settings.pinEnabled}
               onValueChange={(v) => {
-                if (v) setActiveModal('pinSetup');
-                else handleDisablePin();
+                if (v) openPinSetup();
+                else openDisablePinVerify();
               }}
               trackColor={{ false: colors.muted, true: colors.primary }}
               thumbColor={colors.primaryForeground}
             />
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={[styles.switchLabel, { color: colors.foreground }]}>تفعيل قفل PIN</Text>
-              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>4 أرقام عند فتح التطبيق</Text>
+              <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل PIN</Text>
+              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
+                {settings.pinEnabled ? 'القفل مفعّل' : '4 أرقام عند فتح التطبيق'}
+              </Text>
             </View>
-            <Ionicons name="keypad-outline" size={24} color={colors.primary} />
+            <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="keypad-outline" size={20} color={colors.primary} />
+            </View>
           </View>
 
           {settings.pinEnabled && (
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: colors.secondary }]}
-              onPress={() => setActiveModal('pinSetup')}
-            >
-              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-              <Text style={[styles.actionBtnText, { color: colors.primary }]}>تغيير PIN</Text>
-            </TouchableOpacity>
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <TouchableOpacity
+                style={[styles.secRow, { paddingVertical: 12 }]}
+                onPress={openPinSetup}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="chevron-back" size={16} color={colors.silver} />
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={[styles.secActionLabel, { color: colors.foreground }]}>تغيير رمز PIN</Text>
+                  <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>يتطلب رمز PIN الحالي</Text>
+                </View>
+                <View style={[styles.secIconWrap, { backgroundColor: colors.secondary }]}>
+                  <Ionicons name="refresh-outline" size={18} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+            </>
           )}
-        </View>
 
-        {/* Security Key */}
-        <SectionHeader title="مفتاح الأمان" colors={colors} icon="key-outline" />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 10 }]}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>
-            احفظ هذا المفتاح لاستعادة PIN إذا نسيته. يتكون من 10 أحرف وأرقام.
-          </Text>
-          <TouchableOpacity
-            style={[styles.keyDisplay, { backgroundColor: colors.input, borderColor: colors.border }]}
-            onPress={copySecurityKey}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="copy-outline" size={16} color={colors.primary} />
-            <Text style={[styles.keyText, { color: colors.foreground }]} selectable>
-              {settings.securityKey}
-            </Text>
-          </TouchableOpacity>
-          <View style={styles.keyBtns}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.secondary, flex: 1 }]} onPress={() => setActiveModal('pinRecover')}>
-              <Ionicons name="refresh-circle-outline" size={16} color={colors.primary} />
-              <Text style={[styles.actionBtnText, { color: colors.primary }]}>استعادة PIN</Text>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          {/* Security Key */}
+          <View style={{ paddingVertical: 12, paddingHorizontal: 2, gap: 10 }}>
+            <View style={styles.secRow}>
+              <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+                <Text style={[styles.switchLabel, { color: colors.foreground }]}>مفتاح الأمان</Text>
+                <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>احفظه لاستعادة PIN</Text>
+              </View>
+              <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="key-outline" size={20} color={colors.primary} />
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.keyDisplay, { backgroundColor: colors.input, borderColor: colors.border }]}
+              onPress={copySecurityKey}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="copy-outline" size={16} color={colors.primary} />
+              <Text style={[styles.keyText, { color: colors.foreground }]} selectable>
+                {settings.securityKey}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.destructive + '15', flex: 1 }]} onPress={() => setActiveModal('regenerateKey')}>
+            <TouchableOpacity
+              style={[styles.regenBtn, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '30' }]}
+              onPress={openVerifyPinForRegen}
+              activeOpacity={0.8}
+            >
               <Ionicons name="reload-outline" size={16} color={colors.destructive} />
-              <Text style={[styles.actionBtnText, { color: colors.destructive }]}>مفتاح جديد</Text>
+              <Text style={[styles.regenBtnText, { color: colors.destructive }]}>توليد مفتاح جديد</Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Security (Biometric) */}
-        <SectionHeader title="البصمة" colors={colors} icon="finger-print-outline" />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.switchRow}>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          {/* Biometric */}
+          <View style={[styles.secRow, { paddingVertical: 14 }]}>
             <Switch
               value={settings.biometricEnabled}
               onValueChange={handleToggleBiometric}
@@ -537,10 +498,12 @@ export default function SettingsScreen() {
               thumbColor={colors.primaryForeground}
             />
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل بصمة الإصبع</Text>
-              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>يتطلب إعادة تشغيل التطبيق</Text>
+              <Text style={[styles.switchLabel, { color: colors.foreground }]}>بصمة الإصبع</Text>
+              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>الدخول بالبصمة</Text>
             </View>
-            <Ionicons name="finger-print" size={24} color={colors.primary} />
+            <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="finger-print" size={20} color={colors.primary} />
+            </View>
           </View>
         </View>
 
@@ -569,59 +532,39 @@ export default function SettingsScreen() {
           <InfoRow label="عدد الأقسام" value={String(categories.length)} colors={colors} last />
         </View>
 
-        {/* Contact */}
-        <SectionHeader title="الدعم" colors={colors} icon="headset-outline" />
-        <TouchableOpacity
-          style={[styles.card, styles.row, { backgroundColor: colors.card, borderColor: colors.primary }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/contact'); }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chevron-back" size={18} color={colors.mutedForeground} />
-          <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={[styles.rowTitle, { color: colors.foreground }]}>تواصل مع المُبرمج</Text>
-            <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>نداء الرحمن عبّود</Text>
-          </View>
-          <View style={[styles.contactIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="person-outline" size={18} color={colors.primaryForeground} />
-          </View>
-        </TouchableOpacity>
-
-        {/* ─── App Customization (bottom section) ─── */}
-        <SectionHeader title="تخصيص التطبيق" colors={colors} icon="brush-outline" />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.primary + '60', borderWidth: 1.5, gap: 12 }]}>
-          <View style={styles.customizeHeader}>
-            <View style={[styles.customizeBadge, { backgroundColor: colors.primary + '15' }]}>
-              <Ionicons name="shield-checkmark-outline" size={14} color={colors.primary} />
-              <Text style={[styles.customizeBadgeText, { color: colors.primary }]}>يتطلب رمز موافقة</Text>
-            </View>
-            <Text style={[styles.customizeDesc, { color: colors.mutedForeground }]}>
-              تغيير اسم التطبيق وصورة الأيقونة يتطلب إدخال رمز الموافقة المخصص.
-            </Text>
-          </View>
-
-          <View style={styles.customizePreview}>
-            <Image
-              source={settings.appIconUri ? { uri: settings.appIconUri } : require('@/assets/images/icon.png')}
-              style={[styles.customizeIcon, { borderColor: colors.border }]}
-              contentFit="cover"
-            />
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={[styles.customizeAppName, { color: colors.foreground }]}>
-                {settings.appName || 'مجاهد للتجارة'}
-              </Text>
-              <Text style={[styles.customizeAppSub, { color: colors.mutedForeground }]}>
-                {settings.appIconUri ? 'أيقونة مخصصة' : 'الأيقونة الافتراضية'}
-              </Text>
-            </View>
-          </View>
-
+        {/* Contact & Terms */}
+        <SectionHeader title="الدعم والمعلومات" colors={colors} icon="headset-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
           <TouchableOpacity
-            style={[styles.customizeBtn, { backgroundColor: colors.primary }]}
-            onPress={openAppCustomize}
+            style={[styles.secRow, { paddingVertical: 14 }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/contact'); }}
             activeOpacity={0.8}
           >
-            <Ionicons name="create-outline" size={18} color={colors.primaryForeground} />
-            <Text style={[styles.customizeBtnText, { color: colors.primaryForeground }]}>تخصيص الاسم والأيقونة</Text>
+            <Ionicons name="chevron-back" size={18} color={colors.silver} />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.rowTitle, { color: colors.foreground }]}>تواصل مع المُبرمج</Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>نداء الرحمن عبّود</Text>
+            </View>
+            <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          <TouchableOpacity
+            style={[styles.secRow, { paddingVertical: 14 }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/terms'); }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.silver} />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.rowTitle, { color: colors.foreground }]}>شروط الاستخدام</Text>
+              <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>الملكية الفكرية والاستخدام</Text>
+            </View>
+            <View style={[styles.secIconWrap, { backgroundColor: colors.secondary }]}>
+              <Ionicons name="document-lock-outline" size={20} color={colors.primary} />
+            </View>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -677,6 +620,30 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </BottomSheetModal>
 
+      {/* ─── Delete Category Confirm Modal ─── */}
+      <ConfirmModal
+        visible={activeModal === 'deleteCat'}
+        onClose={() => { setActiveModal('none'); setDeletingCat(null); }}
+        onConfirm={confirmDeleteCat}
+        colors={colors}
+        title="حذف القسم"
+        message={`هل تريد حذف القسم "${deletingCat?.name}" نهائياً؟`}
+        confirmLabel="حذف"
+        confirmDestructive
+      />
+
+      {/* ─── Confirm Import Modal ─── */}
+      <ConfirmModal
+        visible={activeModal === 'confirmImport'}
+        onClose={() => setActiveModal('none')}
+        onConfirm={confirmImportData}
+        colors={colors}
+        title="تأكيد الاستيراد"
+        message="سيتم استبدال جميع المنتجات الحالية بالبيانات المستوردة. هل تريد المتابعة؟"
+        confirmLabel="استيراد"
+        confirmDestructive
+      />
+
       {/* ─── Theme Picker Modal ─── */}
       <BottomSheetModal
         visible={activeModal === 'theme'}
@@ -714,52 +681,51 @@ export default function SettingsScreen() {
         })}
       </BottomSheetModal>
 
-      {/* ─── App Name Modal ─── */}
-      <BottomSheetModal
-        visible={activeModal === 'appName'}
-        onClose={() => setActiveModal('none')}
-        colors={colors}
-        title="تغيير اسم التطبيق"
-      >
-        <ModalLabel text="الاسم الجديد" colors={colors} />
-        <TextInput
-          style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
-          value={appNameInput}
-          onChangeText={setAppNameInput}
-          placeholder="مجاهد للتجارة"
-          placeholderTextColor={colors.mutedForeground}
-          textAlign="right"
-          autoFocus
-        />
-        <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveAppName}>
-          <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>حفظ الاسم</Text>
-        </TouchableOpacity>
-      </BottomSheetModal>
-
       {/* ─── PIN Setup Modal ─── */}
       <BottomSheetModal
         visible={activeModal === 'pinSetup'}
         onClose={() => setActiveModal('none')}
         colors={colors}
-        title={settings.pinEnabled ? 'تغيير PIN' : 'تفعيل قفل PIN'}
+        title={settings.pinEnabled ? 'تغيير رمز PIN' : 'تفعيل قفل PIN'}
         keyboardAware
       >
-        <ModalLabel text="أدخل PIN الجديد (4 أرقام)" colors={colors} />
+        {pinError ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+            <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
+            <Text style={[styles.errorText, { color: colors.destructive }]}>{pinError}</Text>
+          </View>
+        ) : null}
+        {settings.pinEnabled && (
+          <>
+            <ModalLabel text="رمز PIN الحالي" colors={colors} />
+            <TextInput
+              style={[styles.modalInput, { color: colors.foreground, borderColor: pinError ? colors.destructive : colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
+              value={currentPinInput}
+              onChangeText={(t) => { setCurrentPinInput(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
+              placeholder="● ● ● ●"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+          </>
+        )}
+        <ModalLabel text="رمز PIN الجديد (4 أرقام)" colors={colors} />
         <TextInput
           style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
           value={newPin}
-          onChangeText={(t) => setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+          onChangeText={(t) => { setNewPin(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
           placeholder="● ● ● ●"
           placeholderTextColor={colors.mutedForeground}
           keyboardType="number-pad"
           secureTextEntry
           maxLength={4}
         />
-        <ModalLabel text="تأكيد PIN" colors={colors} />
+        <ModalLabel text="تأكيد رمز PIN" colors={colors} />
         <TextInput
           style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
           value={confirmPin}
-          onChangeText={(t) => setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+          onChangeText={(t) => { setConfirmPin(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
           placeholder="● ● ● ●"
           placeholderTextColor={colors.mutedForeground}
           keyboardType="number-pad"
@@ -767,168 +733,147 @@ export default function SettingsScreen() {
           maxLength={4}
         />
         <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSavePin}>
-          <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>تفعيل القفل</Text>
+          <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>
+            {settings.pinEnabled ? 'تغيير القفل' : 'تفعيل القفل'}
+          </Text>
         </TouchableOpacity>
       </BottomSheetModal>
 
-      {/* ─── PIN Recovery Modal ─── */}
+      {/* ─── Disable PIN Verify Modal ─── */}
       <BottomSheetModal
-        visible={activeModal === 'pinRecover'}
+        visible={activeModal === 'disablePinVerify'}
         onClose={() => setActiveModal('none')}
         colors={colors}
-        title="استعادة PIN"
+        title="إلغاء قفل PIN"
         keyboardAware
       >
-        <Text style={[styles.recoverNote, { color: colors.mutedForeground }]}>
-          أدخل مفتاح الأمان (10 أحرف) لإعادة تعيين PIN.
-        </Text>
-        <ModalLabel text="مفتاح الأمان" colors={colors} />
+        <View style={[styles.warnBox, { backgroundColor: colors.warning + '12', borderColor: colors.warning + '30' }]}>
+          <Ionicons name="warning-outline" size={20} color={colors.warning} />
+          <Text style={[styles.warnText, { color: colors.warning }]}>
+            أدخل رمز PIN الحالي للتأكيد قبل إلغاء القفل
+          </Text>
+        </View>
+        {pinError ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+            <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
+            <Text style={[styles.errorText, { color: colors.destructive }]}>{pinError}</Text>
+          </View>
+        ) : null}
+        <ModalLabel text="رمز PIN الحالي" colors={colors} />
         <TextInput
-          style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
-          value={recoverKey}
-          onChangeText={setRecoverKey}
-          placeholder="أدخل مفتاح الأمان"
-          placeholderTextColor={colors.mutedForeground}
-          textAlign="right"
-          autoCapitalize="none"
-        />
-        <ModalLabel text="PIN الجديد (4 أرقام)" colors={colors} />
-        <TextInput
-          style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
-          value={recoverNewPin}
-          onChangeText={(t) => setRecoverNewPin(t.replace(/[^0-9]/g, '').slice(0, 4))}
+          style={[styles.modalInput, { color: colors.foreground, borderColor: pinError ? colors.destructive : colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
+          value={currentPinInput}
+          onChangeText={(t) => { setCurrentPinInput(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
           placeholder="● ● ● ●"
           placeholderTextColor={colors.mutedForeground}
           keyboardType="number-pad"
           secureTextEntry
           maxLength={4}
+          autoFocus
         />
-        <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.success }]} onPress={handleRecoverPin}>
-          <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>إعادة تعيين PIN</Text>
+        <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.destructive }]} onPress={handleDisablePin}>
+          <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>إلغاء القفل</Text>
         </TouchableOpacity>
       </BottomSheetModal>
 
-      {/* ─── Regenerate Key Confirmation Modal ─── */}
+      {/* ─── Verify PIN for Key Regeneration ─── */}
       <BottomSheetModal
-        visible={activeModal === 'regenerateKey'}
+        visible={activeModal === 'verifyPinForRegen'}
         onClose={() => setActiveModal('none')}
         colors={colors}
         title="توليد مفتاح أمان جديد"
+        keyboardAware
       >
         <View style={[styles.warnBox, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '30' }]}>
           <Ionicons name="warning-outline" size={22} color={colors.destructive} />
           <Text style={[styles.warnText, { color: colors.destructive }]}>
-            سيتم إلغاء المفتاح الحالي نهائياً. تأكد من حفظ المفتاح الجديد فور توليده!
+            سيتم إلغاء المفتاح الحالي نهائياً. تأكد من حفظ المفتاح الجديد!
           </Text>
         </View>
-
-        <View style={[styles.currentKeyBox, { backgroundColor: colors.input, borderColor: colors.border }]}>
-          <Text style={[styles.currentKeyLabel, { color: colors.mutedForeground }]}>المفتاح الحالي</Text>
-          <Text style={[styles.currentKeyValue, { color: colors.foreground }]}>{settings.securityKey}</Text>
-        </View>
-
-        <View style={styles.warnBtns}>
+        {settings.pinEnabled && (
+          <>
+            {pinError ? (
+              <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+                <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
+                <Text style={[styles.errorText, { color: colors.destructive }]}>{pinError}</Text>
+              </View>
+            ) : null}
+            <ModalLabel text="أدخل رمز PIN للتأكيد" colors={colors} />
+            <TextInput
+              style={[styles.modalInput, { color: colors.foreground, borderColor: pinError ? colors.destructive : colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
+              value={currentPinInput}
+              onChangeText={(t) => { setCurrentPinInput(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
+              placeholder="● ● ● ●"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+              autoFocus
+            />
+          </>
+        )}
+        <View style={[styles.warnBtns]}>
           <TouchableOpacity
-            style={[styles.modalSaveBtn, { backgroundColor: colors.secondary, flex: 1, marginTop: 8, marginBottom: 4 }]}
+            style={[styles.modalSaveBtn, { backgroundColor: colors.secondary, flex: 1 }]}
             onPress={() => setActiveModal('none')}
           >
             <Text style={[styles.modalSaveBtnText, { color: colors.foreground }]}>إلغاء</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.modalSaveBtn, { backgroundColor: colors.destructive, flex: 1, marginTop: 8, marginBottom: 4 }]}
+            style={[styles.modalSaveBtn, { backgroundColor: colors.destructive, flex: 1 }]}
             onPress={confirmRegenerateKey}
           >
-            <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>توليد مفتاح جديد</Text>
+            <Text style={[styles.modalSaveBtnText, { color: '#fff' }]}>توليد جديد</Text>
           </TouchableOpacity>
         </View>
       </BottomSheetModal>
+    </View>
+  );
+}
 
-      {/* ─── App Customize Modal ─── */}
-      <BottomSheetModal
-        visible={activeModal === 'appCustomize'}
-        onClose={() => setActiveModal('none')}
-        colors={colors}
-        title="تخصيص التطبيق"
-        keyboardAware
-      >
-        {!devCodeVerified ? (
-          <>
-            <View style={[styles.devCodeInfo, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
-              <Ionicons name="shield-outline" size={20} color={colors.primary} />
-              <Text style={[styles.devCodeInfoText, { color: colors.primary }]}>
-                أدخل رمز الموافقة للمتابعة
-              </Text>
-            </View>
-            <ModalLabel text="رمز الموافقة" colors={colors} />
-            <TextInput
-              style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, textAlign: 'center', letterSpacing: 3 }]}
-              value={devCode}
-              onChangeText={setDevCode}
-              placeholder="أدخل الرمز هنا"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-            />
-            <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={verifyDevCode}>
-              <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>تحقق من الرمز</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Animated.View entering={FadeInDown.duration(350).springify()}>
-              <View style={[styles.verifiedBadge, { backgroundColor: colors.success + '15', borderColor: colors.success + '30' }]}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                <Text style={[styles.verifiedText, { color: colors.success }]}>تم التحقق بنجاح</Text>
-              </View>
-
-              <ModalLabel text="اسم التطبيق الجديد" colors={colors} />
-              <TextInput
-                style={[styles.modalInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
-                value={customAppName}
-                onChangeText={setCustomAppName}
-                placeholder="مجاهد للتجارة"
-                placeholderTextColor={colors.mutedForeground}
-                textAlign="right"
+function ConfirmModal({
+  visible, onClose, onConfirm, colors, title, message, confirmLabel, confirmDestructive,
+}: {
+  visible: boolean; onClose: () => void; onConfirm: () => void;
+  colors: any; title: string; message: string; confirmLabel: string; confirmDestructive?: boolean;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.confirmOverlay} onPress={onClose}>
+        <Animated.View
+          entering={FadeInDown.duration(250).springify()}
+          style={[styles.confirmBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Pressable onPress={() => {}}>
+            <View style={[styles.confirmIconWrap, { backgroundColor: confirmDestructive ? colors.destructive + '15' : colors.primary + '15' }]}>
+              <Ionicons
+                name={confirmDestructive ? 'trash-outline' : 'checkmark-circle-outline'}
+                size={28}
+                color={confirmDestructive ? colors.destructive : colors.primary}
               />
-
-              <ModalLabel text="أيقونة التطبيق" colors={colors} />
+            </View>
+            <Text style={[styles.confirmTitle, { color: colors.foreground }]}>{title}</Text>
+            <Text style={[styles.confirmMsg, { color: colors.mutedForeground }]}>{message}</Text>
+            <View style={styles.confirmBtns}>
               <TouchableOpacity
-                style={[styles.iconPickerBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                onPress={pickAppIcon}
+                style={[styles.confirmBtn, { backgroundColor: colors.secondary, flex: 1 }]}
+                onPress={onClose}
                 activeOpacity={0.8}
               >
-                {customIconUri ? (
-                  <Image source={{ uri: customIconUri }} style={styles.iconPreviewImg} contentFit="cover" />
-                ) : (
-                  <Image source={require('@/assets/images/icon.png')} style={styles.iconPreviewImg} contentFit="contain" />
-                )}
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                  <Text style={[styles.iconPickerTitle, { color: colors.foreground }]}>
-                    {customIconUri ? 'تغيير الصورة' : 'اختر صورة من المعرض'}
-                  </Text>
-                  <Text style={[styles.iconPickerSub, { color: colors.mutedForeground }]}>
-                    المقاس المطلوب: 1024 × 1024 بكسل
-                  </Text>
-                </View>
-                <Ionicons name="image-outline" size={20} color={colors.primary} />
+                <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>إلغاء</Text>
               </TouchableOpacity>
-
-              <View style={[styles.iconSizeNote, { backgroundColor: colors.muted + '50', borderColor: colors.border }]}>
-                <Ionicons name="information-circle-outline" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.iconSizeNoteText, { color: colors.mutedForeground }]}>
-                  للحصول على أفضل جودة، استخدم صورة مربعة بأبعاد 1024×1024 بكسل بصيغة PNG أو JPG.
-                </Text>
-              </View>
-
-              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveAppCustomize}>
-                <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>حفظ التخصيصات</Text>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: confirmDestructive ? colors.destructive : colors.primary, flex: 1 }]}
+                onPress={onConfirm}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.confirmBtnText, { color: '#fff' }]}>{confirmLabel}</Text>
               </TouchableOpacity>
-            </Animated.View>
-          </>
-        )}
-      </BottomSheetModal>
-    </View>
+            </View>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1043,74 +988,67 @@ const styles = StyleSheet.create({
   catIconWrap: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   addCatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   addCatText: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  // Security
+  secRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 2 },
+  secIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  secActionLabel: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   switchLabel: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   switchNote: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  actionBtn: { height: 40, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
-  actionBtnText: { fontSize: 13, fontFamily: 'Tajawal_500Medium' },
   keyDisplay: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
-  keyText: { flex: 1, fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', letterSpacing: 3 },
-  keyBtns: { flexDirection: 'row', gap: 10 },
+  keyText: { flex: 1, fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'center', letterSpacing: 3 },
+  regenBtn: { height: 42, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  regenBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   backupBtns: { flexDirection: 'row', gap: 10 },
   backupBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
   backupBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   infoValue: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   infoLabel: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  contactIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  // App customize card
-  customizeHeader: { gap: 8, alignItems: 'flex-end' },
-  customizeBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, alignSelf: 'flex-end' },
-  customizeBadgeText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
-  customizeDesc: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 18 },
-  customizePreview: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
-  customizeIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 1 },
-  customizeAppName: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  customizeAppSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  customizeBtn: { height: 50, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  customizeBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
-  // Regenerate key modal
-  warnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
-  warnText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_500Medium', textAlign: 'right', lineHeight: 20 },
-  currentKeyBox: { padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center', gap: 4, marginBottom: 4 },
-  currentKeyLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
-  currentKeyValue: { fontSize: 20, fontFamily: 'Tajawal_700Bold', letterSpacing: 3 },
-  warnBtns: { flexDirection: 'row', gap: 10 },
-  // Dev code modal
-  devCodeInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
-  devCodeInfoText: { fontSize: 13, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 16, justifyContent: 'center' },
-  verifiedText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
-  iconPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1, marginBottom: 10 },
-  iconPreviewImg: { width: 52, height: 52, borderRadius: 12 },
-  iconPickerTitle: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
-  iconPickerSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', marginTop: 2 },
-  iconSizeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
-  iconSizeNoteText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 17 },
-  // Modal
-  kavFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  // Modals
+  kavFull: { flex: 1 },
   modalBackdropFlex: { flex: 1 },
-  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '88%' },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },
-  modalLabel: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginBottom: 6, marginTop: 4 },
-  modalInput: { height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Tajawal_500Medium', marginBottom: 10 },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    padding: 20,
+    paddingBottom: 32,
+    maxHeight: '85%',
+  },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 14 },
+  modalLabel: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', color: '#888', marginBottom: 4, marginTop: 4 },
+  modalInput: { height: 52, borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, fontSize: 16, fontFamily: 'Tajawal_500Medium', marginBottom: 2 },
   modalSaveBtn: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
   modalSaveBtnText: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
-  // Category modal
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, justifyContent: 'center' },
-  previewIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  // Category modal fields
+  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, justifyContent: 'flex-end' },
+  previewIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 18, fontFamily: 'Tajawal_700Bold' },
-  colorRow: { flexDirection: 'row', gap: 10, paddingVertical: 4, marginBottom: 10 },
-  colorDot: { width: 32, height: 32, borderRadius: 16 },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  iconOption: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  // Theme
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10 },
-  themeCheckEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#ccc' },
-  themeRowText: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  colorRow: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
+  colorDot: { width: 34, height: 34, borderRadius: 17 },
+  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
+  iconOption: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  // Theme modal
+  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderRadius: 10, paddingHorizontal: 4 },
+  themeRowText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  themeCheckEmpty: { width: 22, height: 22 },
   themeSwatches: { flexDirection: 'row', gap: 4 },
   swatch: { width: 14, height: 14, borderRadius: 7 },
-  // PIN recover
-  recoverNote: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 20, marginBottom: 10 },
+  // Warning / error boxes
+  warnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+  warnText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 20 },
+  warnBtns: { flexDirection: 'row', gap: 10 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
+  errorText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  // Confirm modal
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  confirmBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
+  confirmIconWrap: { width: 68, height: 68, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 14 },
+  confirmTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
+  confirmMsg: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 10 },
+  confirmBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  confirmBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
 });

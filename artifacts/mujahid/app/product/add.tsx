@@ -67,6 +67,7 @@ export default function AddProductScreen() {
   const [images, setImages] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showImageSource, setShowImageSource] = useState(false);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -104,7 +105,24 @@ export default function AddProductScreen() {
     }
   }
 
-  async function pickImages() {
+  async function pickFromCamera() {
+    setShowImageSource(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      showToast({ message: 'يرجى السماح للتطبيق بالوصول إلى الكاميرا', type: 'error' });
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setImages((prev) => [...prev, result.assets[0].uri].slice(0, 5));
+    }
+  }
+
+  async function pickFromGallery() {
+    setShowImageSource(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       showToast({ message: 'يرجى السماح للتطبيق بالوصول إلى الصور', type: 'error' });
@@ -248,7 +266,7 @@ export default function AddProductScreen() {
             {images.length < 5 && (
               <TouchableOpacity
                 style={[styles.addImageBtn, { borderColor: colors.border, backgroundColor: colors.secondary }]}
-                onPress={pickImages}
+                onPress={() => setShowImageSource(true)}
               >
                 <Ionicons name="camera-outline" size={26} color={colors.primary} />
                 <Text style={[styles.addImageText, { color: colors.silver }]}>إضافة</Text>
@@ -334,6 +352,57 @@ export default function AddProductScreen() {
           />
         </Section>
       </KeyboardAwareScrollView>
+
+      {/* Image Source Sheet */}
+      <Modal
+        visible={showImageSource}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowImageSource(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowImageSource(false)}>
+          <View style={[styles.sourceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.sheetTitle, { color: colors.foreground }]}>إضافة صورة</Text>
+
+            <TouchableOpacity
+              style={[styles.sourceOption, { borderColor: colors.border }]}
+              onPress={pickFromCamera}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.sourceIconWrap, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="camera" size={28} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Text style={[styles.sourceLabel, { color: colors.foreground }]}>التصوير بالكاميرا</Text>
+                <Text style={[styles.sourceSub, { color: colors.mutedForeground }]}>التقاط صورة جديدة الآن</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sourceOption, { borderColor: colors.border }]}
+              onPress={pickFromGallery}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.sourceIconWrap, { backgroundColor: colors.secondary }]}>
+                <Ionicons name="images" size={28} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Text style={[styles.sourceLabel, { color: colors.foreground }]}>الاختيار من المعرض</Text>
+                <Text style={[styles.sourceSub, { color: colors.mutedForeground }]}>اختيار صور موجودة</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.cancelBtn, { backgroundColor: colors.muted }]}
+              onPress={() => setShowImageSource(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>إلغاء</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Category Picker Modal */}
       <Modal
@@ -421,15 +490,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerBtn: { padding: 4, width: 36 },
-  saveBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  saveBtnText: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_700Bold',
-  },
+  saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  saveBtnText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 4 },
   section: { marginBottom: 6 },
@@ -440,31 +502,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginBottom: 6,
   },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'right',
-    letterSpacing: 0.3,
-  },
-  sectionCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
-    gap: 8,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
-  input: {
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    fontFamily: 'Tajawal_500Medium',
-  },
+  sectionTitle: { fontSize: 12, fontFamily: 'Tajawal_700Bold', textAlign: 'right', letterSpacing: 0.3 },
+  sectionCard: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
+  fieldLabel: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Tajawal_500Medium' },
   categorySelector: {
     height: 48,
     borderRadius: 12,
@@ -474,133 +515,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectedCategoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  selectedCategoryText: {
-    fontSize: 15,
-    fontFamily: 'Tajawal_500Medium',
-    flex: 1,
-    textAlign: 'right',
-  },
-  categoryPlaceholder: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_400Regular',
-    flex: 1,
-    textAlign: 'right',
-  },
+  selectedCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  selectedCategoryText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
+  categoryPlaceholder: { fontSize: 14, fontFamily: 'Tajawal_400Regular', flex: 1, textAlign: 'right' },
   flex: { flex: 1 },
-  barcodeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
-  scanBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  priceRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  rateNote: {
-    fontSize: 11,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
-  textarea: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    fontSize: 15,
-    fontFamily: 'Tajawal_500Medium',
-    minHeight: 96,
-    textAlignVertical: 'top',
-  },
-  imagesRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
+  barcodeRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  scanBtn: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  priceRow: { flexDirection: 'row', gap: 10 },
+  rateNote: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  textarea: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, fontFamily: 'Tajawal_500Medium', minHeight: 96, textAlignVertical: 'top' },
+  imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   imageWrapper: { position: 'relative' },
   imageThumb: { width: 76, height: 76 },
-  removeImgBtn: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addImageBtn: {
-    width: 76,
-    height: 76,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  addImageText: {
-    fontSize: 10,
-    fontFamily: 'Tajawal_400Regular',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  removeImgBtn: { position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  addImageBtn: { width: 76, height: 76, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  addImageText: { fontSize: 10, fontFamily: 'Tajawal_400Regular' },
+  // Image source sheet
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sourceSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     borderWidth: 1,
     borderBottomWidth: 0,
     padding: 20,
-    maxHeight: '70%',
+    paddingBottom: 32,
+    gap: 12,
   },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  categoryOption: {
+  sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
+  sheetTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 4 },
+  sourceOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 4,
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  catOptionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  catOptionText: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: 'Tajawal_500Medium',
-    textAlign: 'right',
-  },
+  sourceIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  sourceLabel: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  sourceSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  cancelBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  cancelBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  // Category modal
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '70%' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },
+  categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
+  catOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  catOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
 });

@@ -8,8 +8,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect } from 'react';
-import { Alert, I18nManager, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { I18nManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ import { ProductsProvider } from '@/context/ProductsContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
 import PinScreen from '@/app/pin';
+import PinRecoverScreen from '@/app/pin-recover';
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
@@ -31,6 +32,7 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { settings, isLocked, unlock, isLoading } = useSettings();
+  const [showRecovery, setShowRecovery] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -42,35 +44,23 @@ function RootLayoutNav() {
   if (isLoading) return null;
 
   if (isLocked) {
+    if (showRecovery) {
+      return (
+        <PinRecoverScreen
+          onBack={() => setShowRecovery(false)}
+          onSuccess={() => {
+            setShowRecovery(false);
+            unlock();
+          }}
+        />
+      );
+    }
+
     if (settings.pinEnabled && settings.pinCode) {
       return (
         <PinScreen
-          onUnlock={() => {}}
-          onRecover={() => {
-            Alert.prompt
-              ? Alert.prompt(
-                  'مفتاح الأمان',
-                  'أدخل مفتاح الأمان لإعادة تعيين PIN:',
-                  (key) => {
-                    if (key === settings.securityKey) {
-                      Alert.prompt(
-                        'PIN الجديد',
-                        'أدخل PIN جديداً (4 أرقام):',
-                        (newPin) => {
-                          if (/^\d{4}$/.test(newPin)) {
-                            // will update through settings
-                          }
-                        },
-                        'plain-text'
-                      );
-                    } else {
-                      Alert.alert('خطأ', 'مفتاح الأمان غير صحيح');
-                    }
-                  },
-                  'plain-text'
-                )
-              : undefined;
-          }}
+          onUnlock={() => unlock()}
+          onRecover={() => setShowRecovery(true)}
         />
       );
     }
@@ -85,6 +75,7 @@ function RootLayoutNav() {
       <Stack.Screen name="product/edit/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="scanner" options={{ presentation: 'fullScreenModal', headerShown: false }} />
       <Stack.Screen name="contact" options={{ headerShown: false }} />
+      <Stack.Screen name="terms" options={{ headerShown: false }} />
     </Stack>
   );
 }

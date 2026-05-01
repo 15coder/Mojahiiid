@@ -4,16 +4,17 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
   Dimensions,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PlaceholderImage } from '@/components/PlaceholderImage';
@@ -31,6 +32,7 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getProductById, deleteProduct } = useProducts();
   const [imageIdx, setImageIdx] = useState(0);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const product = getProductById(id);
 
@@ -48,19 +50,11 @@ export default function ProductDetailScreen() {
   const sellTrend = getTrend(product.sellingPriceSYP, product.previousSellingPriceSYP);
   const hasImages = product.imagePaths && product.imagePaths.length > 0;
 
-  function handleDelete() {
-    Alert.alert('حذف المنتج', `هل تريد حذف "${product!.name}" نهائياً؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      {
-        text: 'حذف',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteProduct(product!.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          router.back();
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    setShowDeleteModal(false);
+    await deleteProduct(product!.id);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    router.back();
   }
 
   function handleEdit() {
@@ -183,8 +177,8 @@ export default function ProductDetailScreen() {
             <Text style={[styles.editBtnText, { color: colors.primaryForeground }]}>تعديل</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.deleteBtn, { backgroundColor: '#FEE2E2', borderColor: colors.destructive }]}
-            onPress={handleDelete}
+            style={[styles.deleteBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}
+            onPress={() => setShowDeleteModal(true)}
             activeOpacity={0.85}
           >
             <Ionicons name="trash-outline" size={20} color={colors.destructive} />
@@ -192,6 +186,43 @@ export default function ProductDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Custom Delete Modal */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
+          <Animated.View
+            entering={FadeInDown.duration(250).springify()}
+            style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Pressable onPress={() => {}}>
+              <View style={[styles.modalIconWrap, { backgroundColor: colors.destructive + '15' }]}>
+                <Ionicons name="trash-outline" size={30} color={colors.destructive} />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>حذف المنتج</Text>
+              <Text style={[styles.modalMessage, { color: colors.mutedForeground }]}>
+                هل تريد حذف «{product.name}» نهائياً؟ لا يمكن التراجع عن هذا الإجراء.
+              </Text>
+              <View style={styles.modalBtns}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.secondary }]}
+                  onPress={() => setShowDeleteModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.foreground }]}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.destructive }]}
+                  onPress={confirmDelete}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#fff" />
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>حذف</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -258,35 +289,13 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 12 },
-  imageSection: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  imageContainer: {
-    width: '100%',
-  },
-  mainImage: {
-    width: '100%',
-    height: 240,
-  },
-  thumbnailsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-  },
-  thumbnail: {
-    width: 56,
-    height: 56,
-  },
-  infoSection: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  productName: {
-    fontSize: 24,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'right',
-  },
+  imageSection: { alignItems: 'center', gap: 10 },
+  imageContainer: { width: '100%' },
+  mainImage: { width: '100%', height: 240 },
+  thumbnailsRow: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
+  thumbnail: { width: 56, height: 56 },
+  infoSection: { alignItems: 'flex-end', gap: 6 },
+  productName: { fontSize: 24, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   barcodePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,84 +304,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
   },
-  barcodeText: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_500Medium',
-  },
-  timestamp: {
-    fontSize: 12,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
-  priceCard: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 4,
-    alignItems: 'flex-end',
-  },
+  barcodeText: { fontSize: 13, fontFamily: 'Tajawal_500Medium' },
+  timestamp: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  priceCard: { borderRadius: 16, padding: 16, gap: 4, alignItems: 'flex-end' },
   priceCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
     alignItems: 'center',
   },
-  priceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  priceCardTitle: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_500Medium',
-    textAlign: 'right',
-  },
-  trendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  priceTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  priceCardTitle: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  trendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   prevPrice: {
     fontSize: 12,
     fontFamily: 'Tajawal_400Regular',
     textDecorationLine: 'line-through',
   },
-  bigPrice: {
-    fontSize: 28,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'right',
-  },
-  usdPrice: {
-    fontSize: 16,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
-  notesCard: {
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    gap: 8,
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    justifyContent: 'flex-end',
-  },
-  notesTitle: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_700Bold',
-  },
-  notesText: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-    lineHeight: 22,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
+  bigPrice: { fontSize: 28, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  usdPrice: { fontSize: 16, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  notesCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
+  notesHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end' },
+  notesTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  notesText: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 22 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   editFullBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,14 +346,58 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
   },
-  editBtnText: {
-    fontSize: 16,
+  editBtnText: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
+  notFound: { fontSize: 18, fontFamily: 'Tajawal_500Medium', textAlign: 'center', marginTop: 40 },
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalBox: {
+    width: '100%',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  modalIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  modalTitle: {
+    fontSize: 20,
     fontFamily: 'Tajawal_700Bold',
-  },
-  notFound: {
-    fontSize: 18,
-    fontFamily: 'Tajawal_500Medium',
     textAlign: 'center',
-    marginTop: 40,
+    marginBottom: 8,
   },
+  modalMessage: {
+    fontSize: 14,
+    fontFamily: 'Tajawal_400Regular',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalBtns: { flexDirection: 'row', gap: 10 },
+  modalBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  modalBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
 });

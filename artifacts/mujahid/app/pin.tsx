@@ -1,19 +1,19 @@
-import { Ionicons } from '@expo/vector-icons';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import Animated, {
   FadeIn,
   FadeInDown,
-  FadeInUp,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -22,16 +22,10 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
-
-const KEYS = [
-  ['1', '2', '3'],
-  ['4', '5', '6'],
-  ['7', '8', '9'],
-  ['⌫', '0', '✓'],
-];
 
 interface Props {
   onUnlock: () => void;
@@ -44,31 +38,31 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
   const { settings, unlock } = useSettings();
   const [entered, setEntered] = useState('');
   const [error, setError] = useState(false);
+  const [hasBiometric, setHasBiometric] = useState(false);
+  const inputRef = useRef<TextInput>(null);
   const shakeX = useSharedValue(0);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 24 : insets.bottom;
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' && settings.biometricEnabled) {
+      LocalAuthentication.hasHardwareAsync().then((has) => {
+        if (has) setHasBiometric(true);
+      });
+    }
+  }, [settings.biometricEnabled]);
+
   const shakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeX.value }],
   }));
 
-  function handleKey(key: string) {
-    if (key === '⌫') {
-      setEntered((p) => p.slice(0, -1));
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      return;
-    }
-    if (key === '✓') {
-      submitPin(entered);
-      return;
-    }
-    if (entered.length >= 4) return;
-    const next = entered + key;
-    setEntered(next);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (next.length === 4) {
-      setTimeout(() => submitPin(next), 120);
+  function handleTextChange(text: string) {
+    const digits = text.replace(/[^0-9]/g, '').slice(0, 4);
+    setError(false);
+    setEntered(digits);
+    if (digits.length === 4) {
+      setTimeout(() => submitPin(digits), 80);
     }
   }
 
@@ -85,13 +79,28 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
         withTiming(12, { duration: 55 }),
         withTiming(-9, { duration: 55 }),
         withTiming(9, { duration: 55 }),
-        withTiming(-5, { duration: 55 }),
         withSpring(0, { damping: 22 })
       );
       setTimeout(() => {
         setEntered('');
         setError(false);
-      }, 650);
+      }, 600);
+    }
+  }
+
+  async function handleBiometric() {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'تسجيل الدخول ببصمة الإصبع',
+        cancelLabel: 'إلغاء',
+        disableDeviceFallback: false,
+      });
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onUnlock();
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -100,238 +109,196 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
     : require('@/assets/images/icon.png');
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: topInset }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.kav}
-        keyboardVerticalOffset={topInset}
-      >
-        <View style={[styles.topSection]}>
-          <Animated.View entering={ZoomIn.duration(500).springify().damping(14)} style={[styles.iconRing, { borderColor: colors.primary + '30', backgroundColor: colors.card }]}>
-            <Image source={appIcon} style={styles.appIcon} contentFit="contain" />
-          </Animated.View>
+    <KeyboardAvoidingView
+      style={[styles.screen, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Hidden TextInput that captures keyboard input */}
+      <TextInput
+        ref={inputRef}
+        style={styles.hiddenInput}
+        value={entered}
+        onChangeText={handleTextChange}
+        keyboardType="number-pad"
+        maxLength={4}
+        caretHidden
+        autoFocus={false}
+      />
 
-          <Animated.View entering={FadeInDown.delay(100).duration(400).springify()}>
-            <Text style={[styles.title, { color: colors.foreground }]}>{settings.appName || 'مجاهد للتجارة'}</Text>
-            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              {error ? 'رمز PIN غير صحيح، حاول مجدداً' : 'أدخل رمز PIN للدخول'}
-            </Text>
-          </Animated.View>
+      <View style={[styles.content, { paddingTop: topInset + 20, paddingBottom: bottomInset + 16 }]}>
+        {/* Lock Icon */}
+        <Animated.View entering={ZoomIn.duration(450).springify().damping(14)} style={styles.lockWrap}>
+          <View style={[styles.lockCircle, { backgroundColor: colors.primary }]}>
+            <Ionicons name="lock-closed" size={44} color={colors.primaryForeground} />
+          </View>
+        </Animated.View>
 
-          <Animated.View style={[styles.dotsRow, shakeStyle]}>
-            {[0, 1, 2, 3].map((i) => {
-              const filled = i < entered.length;
-              return (
+        {/* Title */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400).springify()} style={styles.titleBlock}>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            {settings.appName || 'مجاهد للتجارة'}
+          </Text>
+          <Text style={[styles.subtitle, { color: error ? colors.destructive : colors.mutedForeground }]}>
+            {error ? 'رمز PIN غير صحيح، حاول مجدداً' : 'قم بإدخال رمز PIN خاصتك'}
+          </Text>
+        </Animated.View>
+
+        {/* 4 Boxes */}
+        <Animated.View style={[styles.boxesRow, shakeStyle]}>
+          {[0, 1, 2, 3].map((i) => {
+            const filled = i < entered.length;
+            return (
+              <TouchableOpacity
+                key={i}
+                activeOpacity={0.85}
+                onPress={() => inputRef.current?.focus()}
+              >
                 <Animated.View
-                  key={i}
-                  entering={ZoomIn.delay(i * 40).springify()}
+                  entering={ZoomIn.delay(i * 60).springify()}
                   style={[
-                    styles.dotOuter,
+                    styles.box,
                     {
+                      backgroundColor: colors.card,
                       borderColor: error
                         ? colors.destructive
                         : filled
                         ? colors.primary
                         : colors.border,
+                      shadowColor: colors.primary,
                     },
                   ]}
                 >
                   {filled && (
                     <Animated.View
-                      entering={ZoomIn.springify().damping(12)}
-                      style={[
-                        styles.dotInner,
-                        {
-                          backgroundColor: error ? colors.destructive : colors.primary,
-                        },
-                      ]}
+                      entering={ZoomIn.springify().damping(14)}
+                      style={[styles.boxDot, { backgroundColor: error ? colors.destructive : colors.primary }]}
                     />
                   )}
                 </Animated.View>
-              );
-            })}
-          </Animated.View>
-        </View>
-
-        <Animated.View
-          entering={FadeInUp.delay(200).duration(450).springify().damping(18)}
-          style={[styles.keypadCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-        >
-          <View style={styles.keypad}>
-            {KEYS.map((row, ri) => (
-              <View key={ri} style={styles.keyRow}>
-                {row.map((k) => (
-                  <KeyButton
-                    key={k}
-                    label={k}
-                    onPress={() => handleKey(k)}
-                    colors={colors}
-                    isConfirm={k === '✓'}
-                    isDelete={k === '⌫'}
-                    disabled={k === '✓' && entered.length === 0}
-                  />
-                ))}
-              </View>
-            ))}
-          </View>
-
-          {onRecover && (
-            <Animated.View entering={FadeIn.delay(500).duration(400)}>
-              <TouchableOpacity onPress={onRecover} style={styles.recoverBtn} activeOpacity={0.7}>
-                <Ionicons name="key-outline" size={14} color={colors.primary} />
-                <Text style={[styles.recoverText, { color: colors.primary }]}>
-                  نسيت PIN؟ استخدم مفتاح الأمان
-                </Text>
               </TouchableOpacity>
-            </Animated.View>
-          )}
+            );
+          })}
         </Animated.View>
 
-        <View style={{ height: bottomInset + 8 }} />
-      </KeyboardAvoidingView>
-    </View>
-  );
-}
+        {/* Tap boxes to open keyboard */}
+        <Animated.View entering={FadeIn.delay(400).duration(300)}>
+          <TouchableOpacity onPress={() => inputRef.current?.focus()} activeOpacity={0.7}>
+            <Text style={[styles.tapHint, { color: colors.mutedForeground }]}>
+              اضغط هنا لإدخال الرمز
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
 
-interface KeyButtonProps {
-  label: string;
-  onPress: () => void;
-  colors: any;
-  isConfirm?: boolean;
-  isDelete?: boolean;
-  disabled?: boolean;
-}
-
-function KeyButton({ label, onPress, colors, isConfirm, isDelete, disabled }: KeyButtonProps) {
-  const scale = useSharedValue(1);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  function handlePressIn() {
-    scale.value = withSpring(0.88, { damping: 20, stiffness: 500 });
-  }
-
-  function handlePressOut() {
-    scale.value = withSpring(1, { damping: 14, stiffness: 300 });
-  }
-
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      onPressIn={handlePressIn as any}
-      onPressOut={handlePressOut as any}
-      disabled={disabled}
-      activeOpacity={1}
-    >
-      <Animated.View
-        style={[
-          styles.keyBtn,
-          {
-            backgroundColor: isConfirm
-              ? colors.primary
-              : isDelete
-              ? colors.secondary
-              : colors.background,
-            borderColor: isConfirm ? colors.primary : colors.border,
-            opacity: disabled ? 0.35 : 1,
-          },
-          animStyle,
-        ]}
-      >
-        {isDelete ? (
-          <Ionicons name="backspace-outline" size={22} color={colors.foreground} />
-        ) : isConfirm ? (
-          <Ionicons name="checkmark" size={26} color={colors.primaryForeground} />
-        ) : (
-          <Text style={[styles.keyText, { color: colors.foreground }]}>{label}</Text>
+        {/* Forgot PIN */}
+        {onRecover && (
+          <Animated.View entering={FadeIn.delay(500).duration(400)}>
+            <TouchableOpacity onPress={onRecover} style={styles.recoverBtn} activeOpacity={0.7}>
+              <Text style={[styles.recoverText, { color: colors.primary }]}>
+                نسيت رمزك الخاص؟
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
-      </Animated.View>
-    </TouchableOpacity>
+
+        {/* Biometric */}
+        {hasBiometric && (
+          <Animated.View entering={FadeInDown.delay(600).duration(400).springify()} style={styles.biometricBlock}>
+            <TouchableOpacity onPress={handleBiometric} style={styles.biometricBtn} activeOpacity={0.75}>
+              <Ionicons name="finger-print" size={52} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={[styles.biometricHint, { color: colors.mutedForeground }]}>
+              اضغط للدخول بالبصمة
+            </Text>
+          </Animated.View>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  kav: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
-  topSection: { alignItems: 'center', gap: 18, paddingTop: 32, paddingBottom: 8 },
-  iconRing: {
+  hiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+    top: -100,
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    paddingHorizontal: 32,
+  },
+  lockWrap: { alignItems: 'center' },
+  lockCircle: {
     width: 96,
     height: 96,
     borderRadius: 28,
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  appIcon: { width: 72, height: 72, borderRadius: 20 },
-  title: { fontSize: 22, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
-  subtitle: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  dotsRow: { flexDirection: 'row', gap: 20, marginTop: 8 },
-  dotOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  keypadCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: 20,
-    paddingBottom: 16,
-    gap: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  keypad: { gap: 10 },
-  keyRow: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
-  keyBtn: {
-    width: 90,
+  titleBlock: { alignItems: 'center', gap: 6 },
+  title: {
+    fontSize: 20,
+    fontFamily: 'Tajawal_700Bold',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: 'Tajawal_400Regular',
+    textAlign: 'center',
+  },
+  boxesRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  box: {
+    width: 68,
     height: 68,
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  keyText: { fontSize: 26, fontFamily: 'Tajawal_700Bold' },
-  recoverBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    marginTop: 2,
+  boxDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
   },
+  tapHint: {
+    fontSize: 12,
+    fontFamily: 'Tajawal_400Regular',
+    textAlign: 'center',
+    marginTop: -8,
+  },
+  recoverBtn: { paddingVertical: 6, paddingHorizontal: 8 },
   recoverText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Tajawal_500Medium',
     textDecorationLine: 'underline',
+    textAlign: 'center',
+  },
+  biometricBlock: {
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  biometricBtn: { padding: 8 },
+  biometricHint: {
+    fontSize: 12,
+    fontFamily: 'Tajawal_400Regular',
   },
 });

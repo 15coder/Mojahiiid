@@ -22,6 +22,7 @@ interface ProductsContextValue {
   getProductById: (id: string) => Product | undefined;
   exportData: () => Promise<string>;
   importData: (jsonString: string) => Promise<number>;
+  updateAllProductsExchangeRate: (newRate: number) => Promise<void>;
 }
 
 const ProductsContext = createContext<ProductsContextValue | null>(null);
@@ -128,6 +129,26 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     return importedProducts.length;
   }, []);
 
+  const updateAllProductsExchangeRate = useCallback(async (newRate: number) => {
+    if (!newRate || newRate <= 0) return;
+    setProducts((prev) => {
+      const next = prev.map((p) => {
+        const newCostSYP = p.costUSD > 0 ? Math.round(p.costUSD * newRate) : p.costSYP;
+        const newSellSYP = p.sellingPriceUSD > 0 ? Math.round(p.sellingPriceUSD * newRate) : p.sellingPriceSYP;
+        return {
+          ...p,
+          previousCostSYP: p.costSYP,
+          previousSellingPriceSYP: p.sellingPriceSYP,
+          costSYP: newCostSYP,
+          sellingPriceSYP: newSellSYP,
+          lastModified: new Date().toISOString(),
+        };
+      });
+      saveProducts(next).catch(() => {});
+      return next;
+    });
+  }, []);
+
   return (
     <ProductsContext.Provider value={{
       products,
@@ -138,6 +159,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       getProductById,
       exportData,
       importData,
+      updateAllProductsExchangeRate,
     }}>
       {children}
     </ProductsContext.Provider>
