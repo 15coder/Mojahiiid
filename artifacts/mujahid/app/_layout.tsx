@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { BiometricLock } from '@/components/BiometricLock';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { CategoriesProvider } from '@/context/CategoriesContext';
 import { ProductsProvider } from '@/context/ProductsContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { ToastProvider } from '@/context/ToastContext';
@@ -92,11 +93,13 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <SettingsProvider>
-                <ProductsProvider>
-                  <ToastProvider>
-                    <RootLayoutNav />
-                  </ToastProvider>
-                </ProductsProvider>
+                <CategoriesProvider>
+                  <ProductsProvider>
+                    <ToastProvider>
+                      <RootLayoutNav />
+                    </ToastProvider>
+                  </ProductsProvider>
+                </CategoriesProvider>
               </SettingsProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

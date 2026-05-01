@@ -2,6 +2,7 @@ export interface Product {
   id: string;
   name: string;
   barcode?: string;
+  categoryId?: string;
   imagePaths: string[];
   costSYP: number;
   costUSD: number;

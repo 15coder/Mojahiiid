@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Pressable } from 'react-native';
 
+import { useCategories } from '@/context/CategoriesContext';
 import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
 import { formatArabicDate, formatPrice } from '@/utils/dateFormatter';
@@ -31,11 +32,13 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
   const colors = useColors();
+  const { getCategoryById } = useCategories();
   const scale = useSharedValue(1);
 
   const sellingTrend = getTrend(product.sellingPriceSYP, product.previousSellingPriceSYP);
   const costTrend = getTrend(product.costSYP, product.previousCostSYP);
   const hasImage = product.imagePaths && product.imagePaths.length > 0;
+  const category = getCategoryById(product.categoryId);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -83,6 +86,13 @@ function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
             </View>
           ) : null}
         </View>
+
+        {category && (
+          <View style={[styles.categoryBadge, { backgroundColor: category.color + '18' }]}>
+            <Ionicons name={category.icon as any} size={11} color={category.color} />
+            <Text style={[styles.categoryText, { color: category.color }]}>{category.name}</Text>
+          </View>
+        )}
 
         <View style={styles.pricesRow}>
           <View style={styles.priceGroup}>
@@ -182,6 +192,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-end',
+  },
+  categoryText: {
+    fontSize: 10,
+    fontFamily: 'Tajawal_500Medium',
   },
   pricesRow: {
     flexDirection: 'row',
