@@ -2,17 +2,11 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "installCommand": "pnpm install --no-frozen-lockfile"
+      "distribution": "internal"
     },
     "preview": {
-      "android": {
-        "buildType": "apk"
-      },
-      "installCommand": "pnpm install --no-frozen-lockfile"
+      "distribution": "internal"
     },
-    "production": {
-      "installCommand": "pnpm install --no-frozen-lockfile"
-    }
+    "production": {}
   }
 }
