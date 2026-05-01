@@ -933,34 +933,33 @@ export default function SettingsScreen() {
 }
 
 function BottomSheetModal({
-  visible, onClose, colors, title, children, keyboardAware,
+  visible, onClose, colors, title, children,
 }: {
   visible: boolean; onClose: () => void; colors: any; title: string; children: React.ReactNode; keyboardAware?: boolean;
 }) {
-  const content = (
-    <Pressable style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => {}}>
-      <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-      <Text style={[styles.modalTitle, { color: colors.foreground }]}>{title}</Text>
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        {children}
-      </ScrollView>
-    </Pressable>
-  );
-
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        {keyboardAware ? (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.kavSheet}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.kavFull}
+        keyboardVerticalOffset={0}
+      >
+        <Pressable style={styles.modalBackdropFlex} onPress={onClose} />
+        <Pressable
+          style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => {}}
+        >
+          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>{title}</Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
           >
-            {content}
-          </KeyboardAvoidingView>
-        ) : (
-          content
-        )}
-      </Pressable>
+            {children}
+          </ScrollView>
+        </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -1089,8 +1088,8 @@ const styles = StyleSheet.create({
   iconSizeNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
   iconSizeNoteText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 17 },
   // Modal
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  kavSheet: { justifyContent: 'flex-end' },
+  kavFull: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalBackdropFlex: { flex: 1 },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '88%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },
