@@ -91,9 +91,15 @@ export default function ProductsScreen() {
             </Text>
           </View>
 
-          <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.logoText, { color: colors.primaryForeground }]}>م</Text>
-          </View>
+          <Pressable
+            onPress={() => router.push('/(tabs)/settings')}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.primary} />
+          </Pressable>
         </View>
 
         <SearchBar value={query} onChangeText={setQuery} />
@@ -126,7 +132,7 @@ export default function ProductsScreen() {
           )}
           contentContainerStyle={[
             styles.list,
-            { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 100 },
+            { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 90 },
           ]}
           showsVerticalScrollIndicator={false}
         />
@@ -137,7 +143,7 @@ export default function ProductsScreen() {
         style={[
           styles.fab,
           {
-            bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 90,
+            bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 24,
           },
         ]}
       >
@@ -186,17 +192,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Tajawal_400Regular',
     textAlign: 'center',
-  },
-  logo: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 22,
-    fontFamily: 'Tajawal_700Bold',
   },
   iconBtn: {
     width: 40,

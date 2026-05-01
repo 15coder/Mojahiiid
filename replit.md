@@ -23,7 +23,8 @@ pnpm workspace monorepo using TypeScript. Contains the "مجاهد للتجار�
 - **Features**:
   - Product inventory management (CRUD)
   - Dual-currency pricing (SYP / USD) with live conversion
-  - Barcode scanner (expo-camera)
+  - Barcode scanner (expo-camera) — wide rectangular frame, double beep, auto-navigate
+  - Scanner auto-fills barcode in add product page (via route params)
   - Product images (expo-image-picker)
   - Biometric lock (expo-local-authentication)
   - Fuzzy search (fuse.js)
@@ -32,6 +33,9 @@ pnpm workspace monorepo using TypeScript. Contains the "مجاهد للتجار�
   - RTL Arabic UI with Tajawal font
   - Dark/light mode support
   - AsyncStorage persistence
+  - Custom in-app Toast notifications (ToastContext)
+  - No bottom tab bar — settings accessible via icon in main header
+  - Settings page has back button for navigation
 
 ## EAS Build (expo.dev)
 

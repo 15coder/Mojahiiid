@@ -18,6 +18,7 @@ import { BiometricLock } from '@/components/BiometricLock';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ProductsProvider } from '@/context/ProductsContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
+import { ToastProvider } from '@/context/ToastContext';
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
@@ -92,7 +93,9 @@ export default function RootLayout() {
             <KeyboardProvider>
               <SettingsProvider>
                 <ProductsProvider>
-                  <RootLayoutNav />
+                  <ToastProvider>
+                    <RootLayoutNav />
+                  </ToastProvider>
                 </ProductsProvider>
               </SettingsProvider>
             </KeyboardProvider>

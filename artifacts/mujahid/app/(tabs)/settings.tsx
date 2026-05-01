@@ -136,15 +136,21 @@ export default function SettingsScreen() {
           },
         ]}
       >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.backBtn, { backgroundColor: colors.secondary }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerTexts}>
+          <Text style={[styles.pageTitle, { color: colors.foreground }]}>الإعدادات</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.silver }]}>مجاهد للتجارة</Text>
+        </View>
         <Image
           source={require('@/assets/images/icon.png')}
           style={styles.headerIcon}
           contentFit="contain"
         />
-        <View style={styles.headerTexts}>
-          <Text style={[styles.pageTitle, { color: colors.foreground }]}>الإعدادات</Text>
-          <Text style={[styles.pageSubtitle, { color: colors.silver }]}>مجاهد للتجارة</Text>
-        </View>
       </View>
 
       {/* ─── Scrollable Content ─── */}
@@ -333,12 +339,19 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerIcon: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
   },
-  headerTexts: { alignItems: 'flex-end' },
+  headerTexts: { alignItems: 'center', flex: 1 },
   pageTitle: { fontSize: 22, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   pageSubtitle: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   scroll: { flex: 1 },

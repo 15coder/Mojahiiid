@@ -3,12 +3,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
 import { useSettings } from '@/context/SettingsContext';
+import { useToast } from '@/context/ToastContext';
 import { useColors } from '@/hooks/useColors';
 import { usdToSyp, sypToUsd } from '@/utils/priceUtils';
 
@@ -39,9 +38,11 @@ export default function AddProductScreen() {
   const insets = useSafeAreaInsets();
   const { addProduct } = useProducts();
   const { settings } = useSettings();
+  const { showToast } = useToast();
+  const params = useLocalSearchParams<{ barcode?: string }>();
 
   const [name, setName] = useState('');
-  const [barcode, setBarcode] = useState('');
+  const [barcode, setBarcode] = useState(params.barcode ?? '');
   const [costSYP, setCostSYP] = useState('');
   const [costUSD, setCostUSD] = useState('');
   const [sellSYP, setSellSYP] = useState('');
@@ -87,7 +88,7 @@ export default function AddProductScreen() {
   async function pickImages() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('صلاحية مرفوضة', 'يرجى السماح للتطبيق بالوصول إلى الصور');
+      showToast({ message: 'يرجى السماح للتطبيق بالوصول إلى الصور', type: 'error' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -107,7 +108,7 @@ export default function AddProductScreen() {
 
   async function handleSave() {
     if (!name.trim()) {
-      Alert.alert('خطأ', 'اسم المنتج مطلوب');
+      showToast({ message: 'اسم المنتج مطلوب', type: 'error' });
       return;
     }
     try {
@@ -126,7 +127,7 @@ export default function AddProductScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (e: any) {
-      Alert.alert('خطأ', e?.message || 'فشل حفظ المنتج');
+      showToast({ message: e?.message || 'فشل حفظ المنتج', type: 'error' });
     } finally {
       setIsSaving(false);
     }
