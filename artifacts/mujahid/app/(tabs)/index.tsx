@@ -6,11 +6,18 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/ProductCard';
@@ -20,11 +27,14 @@ import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
 import { searchProducts } from '@/utils/fuzzySearch';
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export default function ProductsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { products, isLoading } = useProducts();
   const [query, setQuery] = useState('');
+  const fabScale = useSharedValue(1);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return products;
@@ -36,22 +46,43 @@ export default function ProductsScreen() {
     router.push('/product/add');
   }
 
-  function handleProductPress(id: string) {
-    router.push({ pathname: '/product/[id]', params: { id } });
+  function handleFabPressIn() {
+    fabScale.value = withSpring(0.92, { damping: 20, stiffness: 400 });
   }
+
+  function handleFabPressOut() {
+    fabScale.value = withSpring(1, { damping: 12, stiffness: 300 });
+  }
+
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+      <Animated.View
+        entering={FadeInDown.duration(400).springify().damping(20)}
+        style={[
+          styles.header,
+          {
+            paddingTop: topInset + 12,
+            backgroundColor: colors.background,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
         <View style={styles.headerTop}>
-          <TouchableOpacity
+          <Pressable
             onPress={() => router.push('/scanner')}
-            style={[styles.iconBtn, { backgroundColor: colors.secondary }]}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 },
+            ]}
           >
             <Ionicons name="barcode-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
+          </Pressable>
 
           <View style={styles.headerTitleBlock}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>المنتجات</Text>
@@ -66,14 +97,14 @@ export default function ProductsScreen() {
         </View>
 
         <SearchBar value={query} onChangeText={setQuery} />
-      </View>
+      </Animated.View>
 
       {isLoading ? (
-        <View style={styles.center}>
+        <Animated.View entering={FadeIn.duration(300)} style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        </Animated.View>
       ) : filtered.length === 0 ? (
-        <View style={styles.center}>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.center}>
           <Ionicons name="cube-outline" size={60} color={colors.muted} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
             {query ? 'لا توجد نتائج' : 'لا توجد منتجات'}
@@ -81,7 +112,7 @@ export default function ProductsScreen() {
           <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
             {query ? 'جرّب كلمة بحث مختلفة' : 'اضغط + لإضافة أول منتج'}
           </Text>
-        </View>
+        </Animated.View>
       ) : (
         <FlatList<Product>
           data={filtered}
@@ -90,7 +121,7 @@ export default function ProductsScreen() {
             <ProductCard
               product={item}
               index={index}
-              onPress={() => handleProductPress(item.id)}
+              onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
             />
           )}
           contentContainerStyle={[
@@ -101,19 +132,28 @@ export default function ProductsScreen() {
         />
       )}
 
-      <TouchableOpacity
+      <Animated.View
+        entering={FadeInDown.delay(200).springify().damping(16).stiffness(150)}
         style={[
           styles.fab,
           {
-            backgroundColor: colors.primary,
             bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 90,
           },
         ]}
-        onPress={handleAddPress}
-        activeOpacity={0.85}
       >
-        <Ionicons name="add" size={30} color={colors.primaryForeground} />
-      </TouchableOpacity>
+        <AnimatedPressable
+          style={[
+            styles.fabInner,
+            { backgroundColor: colors.primary },
+            fabStyle,
+          ]}
+          onPress={handleAddPress}
+          onPressIn={handleFabPressIn}
+          onPressOut={handleFabPressOut}
+        >
+          <Ionicons name="add" size={30} color={colors.primaryForeground} />
+        </AnimatedPressable>
+      </Animated.View>
     </View>
   );
 }
@@ -188,6 +228,8 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
+  },
+  fabInner: {
     width: 58,
     height: 58,
     borderRadius: 29,

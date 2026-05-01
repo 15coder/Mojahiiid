@@ -4,10 +4,15 @@ import React, { useCallback } from 'react';
 import {
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
+import { Pressable } from 'react-native';
 
 import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
@@ -22,18 +27,38 @@ interface Props {
   onPress: () => void;
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
   const colors = useColors();
+  const scale = useSharedValue(1);
 
   const sellingTrend = getTrend(product.sellingPriceSYP, product.previousSellingPriceSYP);
   const costTrend = getTrend(product.costSYP, product.previousCostSYP);
   const hasImage = product.imagePaths && product.imagePaths.length > 0;
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  function handlePressIn() {
+    scale.value = withSpring(0.97, { damping: 20, stiffness: 400 });
+  }
+
+  function handlePressOut() {
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  }
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.75}
+    <AnimatedPressable
       onPress={onPress}
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        animatedStyle,
+      ]}
     >
       <View style={styles.imageContainer}>
         {hasImage ? (
@@ -93,13 +118,19 @@ function ProductCardInner({ product, onPress }: Omit<Props, 'index'>) {
           آخر تعديل: {formatArabicDate(product.lastModified)}
         </Text>
       </View>
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 }
 
 export function ProductCard({ product, index, onPress }: Props) {
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).springify()}>
+    <Animated.View
+      entering={FadeInDown.delay(index * 50)
+        .springify()
+        .damping(18)
+        .stiffness(120)
+        .withInitialValues({ transform: [{ translateY: 30 }], opacity: 0 })}
+    >
       <ProductCardInner product={product} onPress={onPress} />
     </Animated.View>
   );
