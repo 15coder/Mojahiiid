@@ -5,10 +5,11 @@ import {
   useFonts,
 } from '@expo-google-fonts/tajawal';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
-import { I18nManager } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -27,6 +28,13 @@ const queryClient = new QueryClient();
 
 function RootLayoutNav() {
   const { isLocked, unlock, isLoading } = useSettings();
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden').catch(() => {});
+      NavigationBar.setBehaviorAsync('overlay-swipe').catch(() => {});
+    }
+  }, []);
 
   if (isLoading) return null;
 
@@ -52,6 +60,10 @@ function RootLayoutNav() {
       <Stack.Screen
         name="scanner"
         options={{ presentation: 'fullScreenModal', headerShown: false }}
+      />
+      <Stack.Screen
+        name="contact"
+        options={{ headerShown: false }}
       />
     </Stack>
   );

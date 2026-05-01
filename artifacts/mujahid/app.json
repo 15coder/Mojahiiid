@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "مجاهد",
+    "name": "مجاهد للتجارة",
     "slug": "mujahid",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
+      "bundleIdentifier": "com.needaa.mujahid",
       "infoPlist": {
         "NSCameraUsageDescription": "مجاهد يحتاج إلى الكاميرا لمسح الباركود",
         "NSPhotoLibraryUsageDescription": "مجاهد يحتاج إلى مكتبة الصور لإضافة صور المنتجات",
@@ -22,12 +23,18 @@
       }
     },
     "android": {
+      "package": "com.needaa.mujahid",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0D1E3D"
+      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -40,7 +47,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-navigation-bar"
     ],
     "experiments": {
       "typedRoutes": true,

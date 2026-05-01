@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
 import {
@@ -128,7 +129,7 @@ export default function SettingsScreen() {
         styles.content,
         {
           paddingTop: topInset + 16,
-          paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 40,
+          paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 56,
         },
       ]}
       showsVerticalScrollIndicator={false}
@@ -139,10 +140,11 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.headerTexts}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>الإعدادات</Text>
-          <Text style={[styles.pageSubtitle, { color: colors.silver }]}>مجاهد - إدارة المخزون</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.silver }]}>مجاهد للتجارة</Text>
         </View>
       </View>
 
+      {/* ─── Exchange Rate ─── */}
       <SectionHeader title="معدل الصرف" colors={colors} icon="cash-outline" />
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.label, { color: colors.mutedForeground }]}>
@@ -152,23 +154,38 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: colors.primary }]}
             onPress={handleRateSubmit}
+            activeOpacity={0.8}
           >
-            <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
+            <Ionicons name="checkmark" size={22} color={colors.primaryForeground} />
           </TouchableOpacity>
           <TextInput
-            style={[styles.rateInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input, fontFamily: 'Tajawal_500Medium' }]}
+            style={[
+              styles.rateInput,
+              {
+                color: colors.foreground,
+                borderColor: colors.border,
+                backgroundColor: colors.input,
+                fontFamily: 'Tajawal_500Medium',
+              },
+            ]}
             value={rateInput}
             onChangeText={setRateInput}
             keyboardType="numeric"
             textAlign="right"
             onSubmitEditing={handleRateSubmit}
+            placeholder="مثال: 13500"
+            placeholderTextColor={colors.mutedForeground}
           />
         </View>
-        <Text style={[styles.rateNote, { color: colors.silver }]}>
-          السعر الحالي: 1 USD = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س
-        </Text>
+        <View style={[styles.rateBadge, { backgroundColor: colors.primary + '18' }]}>
+          <Text style={[styles.rateNote, { color: colors.primary }]}>
+            1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س
+          </Text>
+          <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
+        </View>
       </View>
 
+      {/* ─── Security ─── */}
       <SectionHeader title="الأمان" colors={colors} icon="shield-checkmark-outline" />
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.switchRow}>
@@ -184,46 +201,78 @@ export default function SettingsScreen() {
               يتطلب إعادة تشغيل التطبيق للتفعيل
             </Text>
           </View>
-          <Ionicons name="finger-print" size={22} color={colors.primary} />
+          <Ionicons name="finger-print" size={24} color={colors.primary} />
         </View>
       </View>
 
+      {/* ─── Backup ─── */}
       <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="cloud-outline" />
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 12 }]}>
         <Text style={[styles.backupNote, { color: colors.mutedForeground }]}>
           يمكنك تصدير بيانات {products.length} منتج إلى ملف JSON ومشاركته، أو استيراد ملف نسخة سابقة.
         </Text>
-        <TouchableOpacity
-          style={[styles.backupBtn, { backgroundColor: colors.primary }]}
-          onPress={handleExport}
-          disabled={isExporting}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="download-outline" size={20} color={colors.primaryForeground} />
-          <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]}>
-            {isExporting ? 'جاري التصدير...' : 'تصدير / نسخ احتياطي'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.backupBtn, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
-          onPress={handleImport}
-          disabled={isImporting}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
-          <Text style={[styles.backupBtnText, { color: colors.primary }]}>
-            {isImporting ? 'جاري الاستيراد...' : 'استيراد / استعادة'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.backupBtns}>
+          <TouchableOpacity
+            style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]}
+            onPress={handleExport}
+            disabled={isExporting}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="download-outline" size={18} color={colors.primaryForeground} />
+            <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]} numberOfLines={1}>
+              {isExporting ? 'جاري...' : 'تصدير'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.backupBtn,
+              {
+                backgroundColor: colors.secondary,
+                borderColor: colors.border,
+                borderWidth: 1,
+                flex: 1,
+              },
+            ]}
+            onPress={handleImport}
+            disabled={isImporting}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
+            <Text style={[styles.backupBtnText, { color: colors.primary }]} numberOfLines={1}>
+              {isImporting ? 'جاري...' : 'استيراد'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <SectionHeader title="معلومات" colors={colors} icon="information-circle-outline" />
+      {/* ─── Info ─── */}
+      <SectionHeader title="معلومات التطبيق" colors={colors} icon="information-circle-outline" />
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <InfoRow label="اسم التطبيق" value="مجاهد" colors={colors} />
+        <InfoRow label="اسم التطبيق" value="مجاهد للتجارة" colors={colors} />
         <InfoRow label="الإصدار" value="1.0.0" colors={colors} />
         <InfoRow label="عدد المنتجات" value={String(products.length)} colors={colors} />
-        <InfoRow label="العملة الأساسية" value="ليرة سورية (SYP)" colors={colors} />
+        <InfoRow label="العملة الأساسية" value="ليرة سورية (SYP)" colors={colors} last />
       </View>
+
+      {/* ─── Developer Contact ─── */}
+      <SectionHeader title="الدعم والتواصل" colors={colors} icon="headset-outline" />
+      <TouchableOpacity
+        style={[styles.card, styles.contactCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push('/contact');
+        }}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.contactIcon, { backgroundColor: colors.primary }]}>
+          <Ionicons name="person-outline" size={20} color={colors.primaryForeground} />
+        </View>
+        <View style={styles.contactTexts}>
+          <Text style={[styles.contactTitle, { color: colors.foreground }]}>تواصل مع المُبرمج</Text>
+          <Text style={[styles.contactSub, { color: colors.mutedForeground }]}>نداء الرحمن عبّود</Text>
+        </View>
+        <Ionicons name="chevron-back" size={20} color={colors.mutedForeground} />
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -231,15 +280,30 @@ export default function SettingsScreen() {
 function SectionHeader({ title, colors, icon }: { title: string; colors: any; icon: string }) {
   return (
     <View style={styles.sectionHeader}>
-      <Ionicons name={icon as any} size={16} color={colors.primary} />
+      <Ionicons name={icon as any} size={15} color={colors.primary} />
       <Text style={[styles.sectionTitle, { color: colors.primary }]}>{title}</Text>
     </View>
   );
 }
 
-function InfoRow({ label, value, colors }: { label: string; value: string; colors: any }) {
+function InfoRow({
+  label,
+  value,
+  colors,
+  last,
+}: {
+  label: string;
+  value: string;
+  colors: any;
+  last?: boolean;
+}) {
   return (
-    <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+    <View
+      style={[
+        styles.infoRow,
+        !last && { borderBottomWidth: 0.5, borderBottomColor: colors.border },
+      ]}
+    >
       <Text style={[styles.infoValue, { color: colors.foreground }]}>{value}</Text>
       <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>{label}</Text>
     </View>
@@ -263,21 +327,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: {
-    fontSize: 26,
-    fontFamily: 'Tajawal_700Bold',
-  },
+  logoText: { fontSize: 26, fontFamily: 'Tajawal_700Bold' },
   headerTexts: { alignItems: 'flex-end' },
-  pageTitle: {
-    fontSize: 24,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'right',
-  },
-  pageSubtitle: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
+  pageTitle: { fontSize: 24, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  pageSubtitle: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -287,10 +340,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Tajawal_700Bold',
     textAlign: 'right',
-    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   card: {
@@ -300,37 +352,34 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     gap: 8,
   },
-  label: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
-  rateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  label: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rateInput: {
     flex: 1,
-    height: 48,
+    height: 52,
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'Tajawal_500Medium',
   },
   saveBtn: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rateNote: {
-    fontSize: 12,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
+  rateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
+  rateNote: { fontSize: 13, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,49 +387,46 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   switchTexts: { flex: 1, alignItems: 'flex-end' },
-  switchLabel: {
-    fontSize: 15,
-    fontFamily: 'Tajawal_500Medium',
-    textAlign: 'right',
-  },
-  switchNote: {
-    fontSize: 11,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
-  },
+  switchLabel: { fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  switchNote: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   backupNote: {
     fontSize: 13,
     fontFamily: 'Tajawal_400Regular',
     textAlign: 'right',
     lineHeight: 20,
   },
+  backupBtns: { flexDirection: 'row', gap: 10 },
   backupBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 13,
     borderRadius: 12,
   },
-  backupBtnText: {
-    fontSize: 15,
-    fontFamily: 'Tajawal_700Bold',
-  },
+  backupBtnText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 0.5,
+    paddingVertical: 9,
   },
-  infoLabel: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'right',
+  infoLabel: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  infoValue: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'left' },
+  contactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1.5,
   },
-  infoValue: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'left',
+  contactIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  contactTexts: { flex: 1, alignItems: 'flex-end' },
+  contactTitle: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  contactSub: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
 });
