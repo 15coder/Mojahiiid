@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/"
+title = "مجاهد - إدارة المخزون"
+version = "1.0.0"
+id = "artifacts/mujahid"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/" ]
+localPort = 24425
+
+[services.development]
+run = "pnpm --filter @workspace/mujahid run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mujahid", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/mujahid", "run", "serve" ]
+
+[services.env]
+PORT = "24425"
+BASE_PATH = "/"
