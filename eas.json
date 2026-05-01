@@ -1,35 +1,18 @@
 {
-  "cli": {
-    "version": ">= 16.0.0",
-    "appVersionSource": "local"
-  },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "node": "22.0.0",
-      "pnpm": "10",
-      "android": {
-        "buildType": "apk"
-      }
+      "installCommand": "pnpm install --no-frozen-lockfile"
     },
     "preview": {
-      "distribution": "internal",
-      "node": "22.0.0",
-      "pnpm": "10",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "installCommand": "pnpm install --no-frozen-lockfile"
     },
     "production": {
-      "node": "22.0.0",
-      "pnpm": "10",
-      "android": {
-        "buildType": "app-bundle"
-      }
+      "installCommand": "pnpm install --no-frozen-lockfile"
     }
-  },
-  "submit": {
-    "production": {}
   }
 }
