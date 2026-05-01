@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useState } from 'react';
@@ -123,157 +124,169 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: topInset + 16,
-          paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 56,
-        },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.headerRow}>
-        <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.logoText, { color: colors.primaryForeground }]}>م</Text>
-        </View>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      {/* ─── Fixed Header ─── */}
+      <View
+        style={[
+          styles.fixedHeader,
+          {
+            paddingTop: topInset,
+            backgroundColor: colors.background,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Image
+          source={require('@/assets/images/icon.png')}
+          style={styles.headerIcon}
+          contentFit="contain"
+        />
         <View style={styles.headerTexts}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>الإعدادات</Text>
           <Text style={[styles.pageSubtitle, { color: colors.silver }]}>مجاهد للتجارة</Text>
         </View>
       </View>
 
-      {/* ─── Exchange Rate ─── */}
-      <SectionHeader title="معدل الصرف" colors={colors} icon="cash-outline" />
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>
-          سعر الدولار بالليرة السورية (SYP)
-        </Text>
-        <View style={styles.rateRow}>
-          <TouchableOpacity
-            style={[styles.saveBtn, { backgroundColor: colors.primary }]}
-            onPress={handleRateSubmit}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="checkmark" size={22} color={colors.primaryForeground} />
-          </TouchableOpacity>
-          <TextInput
-            style={[
-              styles.rateInput,
-              {
-                color: colors.foreground,
-                borderColor: colors.border,
-                backgroundColor: colors.input,
-                fontFamily: 'Tajawal_500Medium',
-              },
-            ]}
-            value={rateInput}
-            onChangeText={setRateInput}
-            keyboardType="numeric"
-            textAlign="right"
-            onSubmitEditing={handleRateSubmit}
-            placeholder="مثال: 13500"
-            placeholderTextColor={colors.mutedForeground}
-          />
-        </View>
-        <View style={[styles.rateBadge, { backgroundColor: colors.primary + '18' }]}>
-          <Text style={[styles.rateNote, { color: colors.primary }]}>
-            1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س
-          </Text>
-          <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
-        </View>
-      </View>
-
-      {/* ─── Security ─── */}
-      <SectionHeader title="الأمان" colors={colors} icon="shield-checkmark-outline" />
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.switchRow}>
-          <Switch
-            value={settings.biometricEnabled}
-            onValueChange={handleToggleBiometric}
-            trackColor={{ false: colors.muted, true: colors.primary }}
-            thumbColor={colors.primaryForeground}
-          />
-          <View style={styles.switchTexts}>
-            <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل بصمة الإصبع</Text>
-            <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
-              يتطلب إعادة تشغيل التطبيق للتفعيل
-            </Text>
-          </View>
-          <Ionicons name="finger-print" size={24} color={colors.primary} />
-        </View>
-      </View>
-
-      {/* ─── Backup ─── */}
-      <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="cloud-outline" />
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 12 }]}>
-        <Text style={[styles.backupNote, { color: colors.mutedForeground }]}>
-          يمكنك تصدير بيانات {products.length} منتج إلى ملف JSON ومشاركته، أو استيراد ملف نسخة سابقة.
-        </Text>
-        <View style={styles.backupBtns}>
-          <TouchableOpacity
-            style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]}
-            onPress={handleExport}
-            disabled={isExporting}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="download-outline" size={18} color={colors.primaryForeground} />
-            <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]} numberOfLines={1}>
-              {isExporting ? 'جاري...' : 'تصدير'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.backupBtn,
-              {
-                backgroundColor: colors.secondary,
-                borderColor: colors.border,
-                borderWidth: 1,
-                flex: 1,
-              },
-            ]}
-            onPress={handleImport}
-            disabled={isImporting}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
-            <Text style={[styles.backupBtnText, { color: colors.primary }]} numberOfLines={1}>
-              {isImporting ? 'جاري...' : 'استيراد'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ─── Info ─── */}
-      <SectionHeader title="معلومات التطبيق" colors={colors} icon="information-circle-outline" />
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <InfoRow label="اسم التطبيق" value="مجاهد للتجارة" colors={colors} />
-        <InfoRow label="الإصدار" value="1.0.0" colors={colors} />
-        <InfoRow label="عدد المنتجات" value={String(products.length)} colors={colors} />
-        <InfoRow label="العملة الأساسية" value="ليرة سورية (SYP)" colors={colors} last />
-      </View>
-
-      {/* ─── Developer Contact ─── */}
-      <SectionHeader title="الدعم والتواصل" colors={colors} icon="headset-outline" />
-      <TouchableOpacity
-        style={[styles.card, styles.contactCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/contact');
-        }}
-        activeOpacity={0.8}
+      {/* ─── Scrollable Content ─── */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 56 },
+        ]}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.contactIcon, { backgroundColor: colors.primary }]}>
-          <Ionicons name="person-outline" size={20} color={colors.primaryForeground} />
+        {/* ─── Exchange Rate ─── */}
+        <SectionHeader title="معدل الصرف" colors={colors} icon="cash-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
+            سعر الدولار بالليرة السورية (SYP)
+          </Text>
+          <View style={styles.rateRow}>
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={handleRateSubmit}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark" size={22} color={colors.primaryForeground} />
+            </TouchableOpacity>
+            <TextInput
+              style={[
+                styles.rateInput,
+                {
+                  color: colors.foreground,
+                  borderColor: colors.border,
+                  backgroundColor: colors.input,
+                  fontFamily: 'Tajawal_500Medium',
+                },
+              ]}
+              value={rateInput}
+              onChangeText={setRateInput}
+              keyboardType="numeric"
+              textAlign="right"
+              onSubmitEditing={handleRateSubmit}
+              placeholder="مثال: 13500"
+              placeholderTextColor={colors.mutedForeground}
+            />
+          </View>
+          <View style={[styles.rateBadge, { backgroundColor: colors.primary + '18' }]}>
+            <Text style={[styles.rateNote, { color: colors.primary }]}>
+              1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س
+            </Text>
+            <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
+          </View>
         </View>
-        <View style={styles.contactTexts}>
-          <Text style={[styles.contactTitle, { color: colors.foreground }]}>تواصل مع المُبرمج</Text>
-          <Text style={[styles.contactSub, { color: colors.mutedForeground }]}>نداء الرحمن عبّود</Text>
+
+        {/* ─── Security ─── */}
+        <SectionHeader title="الأمان" colors={colors} icon="shield-checkmark-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.switchRow}>
+            <Switch
+              value={settings.biometricEnabled}
+              onValueChange={handleToggleBiometric}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor={colors.primaryForeground}
+            />
+            <View style={styles.switchTexts}>
+              <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل بصمة الإصبع</Text>
+              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
+                يتطلب إعادة تشغيل التطبيق للتفعيل
+              </Text>
+            </View>
+            <Ionicons name="finger-print" size={24} color={colors.primary} />
+          </View>
         </View>
-        <Ionicons name="chevron-back" size={20} color={colors.mutedForeground} />
-      </TouchableOpacity>
-    </ScrollView>
+
+        {/* ─── Backup ─── */}
+        <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="cloud-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 12 }]}>
+          <Text style={[styles.backupNote, { color: colors.mutedForeground }]}>
+            يمكنك تصدير بيانات {products.length} منتج إلى ملف JSON ومشاركته، أو استيراد ملف نسخة سابقة.
+          </Text>
+          <View style={styles.backupBtns}>
+            <TouchableOpacity
+              style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]}
+              onPress={handleExport}
+              disabled={isExporting}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="download-outline" size={18} color={colors.primaryForeground} />
+              <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]} numberOfLines={1}>
+                {isExporting ? 'جاري...' : 'تصدير'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.backupBtn,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  flex: 1,
+                },
+              ]}
+              onPress={handleImport}
+              disabled={isImporting}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
+              <Text style={[styles.backupBtnText, { color: colors.primary }]} numberOfLines={1}>
+                {isImporting ? 'جاري...' : 'استيراد'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ─── Info ─── */}
+        <SectionHeader title="معلومات التطبيق" colors={colors} icon="information-circle-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <InfoRow label="اسم التطبيق" value="مجاهد للتجارة" colors={colors} />
+          <InfoRow label="الإصدار" value="1.0.0" colors={colors} />
+          <InfoRow label="عدد المنتجات" value={String(products.length)} colors={colors} />
+          <InfoRow label="العملة الأساسية" value="ليرة سورية (SYP)" colors={colors} last />
+        </View>
+
+        {/* ─── Developer Contact ─── */}
+        <SectionHeader title="الدعم والتواصل" colors={colors} icon="headset-outline" />
+        <TouchableOpacity
+          style={[styles.card, styles.contactCard, { backgroundColor: colors.card, borderColor: colors.primary }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/contact');
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.contactIcon, { backgroundColor: colors.primary }]}>
+            <Ionicons name="person-outline" size={20} color={colors.primaryForeground} />
+          </View>
+          <View style={styles.contactTexts}>
+            <Text style={[styles.contactTitle, { color: colors.foreground }]}>تواصل مع المُبرمج</Text>
+            <Text style={[styles.contactSub, { color: colors.mutedForeground }]}>نداء الرحمن عبّود</Text>
+          </View>
+          <Ionicons name="chevron-back" size={20} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -311,26 +324,25 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { paddingHorizontal: 16, gap: 8 },
-  headerRow: {
+  screen: { flex: 1 },
+  fixedHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
   },
-  logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
   },
-  logoText: { fontSize: 26, fontFamily: 'Tajawal_700Bold' },
   headerTexts: { alignItems: 'flex-end' },
-  pageTitle: { fontSize: 24, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  pageSubtitle: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  pageTitle: { fontSize: 22, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  pageSubtitle: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -23,8 +24,38 @@ export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [lastCode, setLastCode] = useState<string | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      Audio.setAudioModeAsync({ playsInSilentModeIOS: true }).catch(() => {});
+    }
+    return () => {
+      soundRef.current?.unloadAsync().catch(() => {});
+    };
+  }, []);
+
+  async function playBeep() {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+      }
+      const { sound } = await Audio.Sound.createAsync(
+        require('@/assets/beep.wav'),
+        { shouldPlay: true, volume: 1.0 }
+      );
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch {
+      // fallback: haptics only
+    }
+  }
 
   if (Platform.OS === 'web') {
     return (
@@ -81,7 +112,9 @@ export default function ScannerScreen() {
     if (scanned) return;
     setScanned(true);
     setLastCode(data);
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    playBeep();
 
     const existing = products.find((p) => p.barcode === data);
     if (existing) {
