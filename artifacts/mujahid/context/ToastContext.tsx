@@ -17,6 +17,8 @@ interface ToastOptions {
   message: string;
   type?: ToastType;
   duration?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 interface ToastContextValue {
@@ -33,6 +35,8 @@ interface ToastState {
   message: string;
   type: ToastType;
   id: number;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 function ToastItem({ toast, onHide }: { toast: ToastState; onHide: () => void }) {
@@ -71,6 +75,11 @@ function ToastItem({ toast, onHide }: { toast: ToastState; onHide: () => void })
     ]).start(onHide);
   }
 
+  function handleAction() {
+    toast.onAction?.();
+    hide();
+  }
+
   return (
     <Animated.View
       style={[
@@ -88,6 +97,11 @@ function ToastItem({ toast, onHide }: { toast: ToastState; onHide: () => void })
         <Text style={styles.toastText} numberOfLines={3}>
           {toast.message}
         </Text>
+        {toast.actionLabel && toast.onAction && (
+          <TouchableOpacity onPress={handleAction} style={styles.actionBtn}>
+            <Text style={styles.actionText}>{toast.actionLabel}</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -97,9 +111,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const counterRef = useRef(0);
 
-  const showToast = useCallback(({ message, type = 'info', duration = 3000 }: ToastOptions) => {
+  const showToast = useCallback(({ message, type = 'info', duration = 3000, actionLabel, onAction }: ToastOptions) => {
     const id = ++counterRef.current;
-    setToasts((prev) => [...prev, { message, type, id }]);
+    setToasts((prev) => [...prev, { message, type, id, actionLabel, onAction }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, duration);
@@ -146,5 +160,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Tajawal_500Medium',
     textAlign: 'right',
     lineHeight: 20,
+  },
+  actionBtn: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  actionText: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: 'Tajawal_700Bold',
   },
 });

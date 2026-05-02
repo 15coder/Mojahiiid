@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import React from 'react';
 import {
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -25,18 +27,22 @@ interface Props {
   product: Product;
   index: number;
   onPress: () => void;
+  onLongPress?: () => void;
   grid?: boolean;
   customerViewMode?: boolean;
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+const SELL_COLOR = '#22C55E';
+const COST_COLOR = '#F59E0B';
+
 function isPriceUpdatedRecently(lastModified: string): boolean {
   const diff = Date.now() - new Date(lastModified).getTime();
   return diff < 24 * 60 * 60 * 1000;
 }
 
-function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Props, 'index'>) {
+function ProductCardInner({ product, onPress, onLongPress, grid, customerViewMode }: Omit<Props, 'index'>) {
   const colors = useColors();
   const { getCategoryById } = useCategories();
   const scale = useSharedValue(1);
@@ -46,6 +52,7 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
   const hasImage = product.imagePaths && product.imagePaths.length > 0;
   const category = getCategoryById(product.categoryId);
   const priceUpdatedRecently = isPriceUpdatedRecently(product.lastModified);
+  const categoryBorderColor = category?.color ?? 'transparent';
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -56,18 +63,32 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
   }
 
   function handlePressOut() {
-    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    scale.value = withSpring(1, { damping: 12, stiffness: 280 });
+  }
+
+  function handleLongPress() {
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+    scale.value = withSpring(1, { damping: 12, stiffness: 280 });
+    onLongPress?.();
   }
 
   if (grid) {
     return (
       <AnimatedPressable
         onPress={onPress}
+        onLongPress={handleLongPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={[
           styles.gridCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderTopWidth: 3,
+            borderTopColor: categoryBorderColor,
+          },
           animatedStyle,
         ]}
       >
@@ -98,12 +119,12 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
         )}
         <View style={styles.gridPriceRow}>
           <PriceTrendIcon trend={sellingTrend} />
-          <Text style={[styles.gridPrice, { color: colors.primary }]} numberOfLines={1}>
+          <Text style={[styles.gridPrice, { color: SELL_COLOR }]} numberOfLines={1}>
             {formatPrice(product.sellingPriceSYP, 'SYP')}
           </Text>
         </View>
         {!customerViewMode && product.costSYP > 0 && (
-          <Text style={[styles.gridCost, { color: colors.mutedForeground }]} numberOfLines={1}>
+          <Text style={[styles.gridCost, { color: COST_COLOR }]} numberOfLines={1}>
             التكلفة: {formatPrice(product.costSYP, 'SYP')}
           </Text>
         )}
@@ -114,11 +135,17 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
   return (
     <AnimatedPressable
       onPress={onPress}
+      onLongPress={handleLongPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={[
         styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          borderRightWidth: 4,
+          borderRightColor: categoryBorderColor,
+        },
         animatedStyle,
       ]}
     >
@@ -147,7 +174,7 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
               </View>
             )}
             {product.barcode ? (
-              <View style={[styles.barcodeBadge, { backgroundColor: colors.secondary }]}>
+              <View style={[styles.barcodeBadge2, { backgroundColor: colors.secondary }]}>
                 <Ionicons name="barcode-outline" size={12} color={colors.primary} />
               </View>
             ) : null}
@@ -171,7 +198,7 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
                 <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>التكلفة</Text>
                 <View style={styles.priceValueRow}>
                   <PriceTrendIcon trend={costTrend} />
-                  <Text style={[styles.priceValue, { color: colors.foreground }]}>
+                  <Text style={[styles.priceValue, { color: COST_COLOR }]}>
                     {formatPrice(product.costSYP, 'SYP')}
                   </Text>
                 </View>
@@ -188,7 +215,7 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
             <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>سعر البيع</Text>
             <View style={styles.priceValueRow}>
               <PriceTrendIcon trend={sellingTrend} />
-              <Text style={[styles.priceValue, { color: colors.primary }]}>
+              <Text style={[styles.priceValue, { color: SELL_COLOR }]}>
                 {formatPrice(product.sellingPriceSYP, 'SYP')}
               </Text>
             </View>
@@ -206,8 +233,16 @@ function ProductCardInner({ product, onPress, grid, customerViewMode }: Omit<Pro
   );
 }
 
-export function ProductCard({ product, index, onPress, grid, customerViewMode }: Props) {
-  return <ProductCardInner product={product} onPress={onPress} grid={grid} customerViewMode={customerViewMode} />;
+export function ProductCard({ product, index, onPress, onLongPress, grid, customerViewMode }: Props) {
+  return (
+    <ProductCardInner
+      product={product}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      grid={grid}
+      customerViewMode={customerViewMode}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -255,7 +290,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     flex: 1,
   },
-  barcodeBadge: {
+  barcodeBadge2: {
     width: 24,
     height: 24,
     borderRadius: 6,
@@ -348,6 +383,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     position: 'relative',
+    overflow: 'hidden',
   },
   gridImageWrap: {
     alignItems: 'center',

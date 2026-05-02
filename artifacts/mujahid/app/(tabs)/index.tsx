@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,21 +20,25 @@ import Animated, {
   FadeInDown,
   FadeInUp,
   LinearTransition,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/ProductCard';
+import { ProductPreviewSheet } from '@/components/ProductPreviewSheet';
+import { SkeletonList } from '@/components/SkeletonCard';
+import { SpeedDial, SpeedDialAction } from '@/components/SpeedDial';
 import { useCategories } from '@/context/CategoriesContext';
 import { useProducts } from '@/context/ProductsContext';
 import { useSettings } from '@/context/SettingsContext';
+import { useToast } from '@/context/ToastContext';
 import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
 import { searchProducts } from '@/utils/fuzzySearch';
+import {
+  addToRecentlyViewed,
+  getRecentlyViewed,
+} from '@/utils/recentlyViewed';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const NO_CATEGORY_ID = '__none__';
 
 type SortMode = 'newest' | 'oldest' | 'az' | 'za' | 'price_asc' | 'price_desc';
@@ -51,9 +55,11 @@ const SORT_OPTIONS: { key: SortMode; label: string; icon: string }[] = [
 export default function ProductsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { products, isLoading } = useProducts();
+  const { products, isLoading, deleteProduct, restoreProduct } = useProducts();
   const { visibleCategories, getCategoryById } = useCategories();
   const { settings } = useSettings();
+  const { showToast } = useToast();
+
   const [query, setQuery] = useState('');
   const [barcodeQuery, setBarcodeQuery] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
@@ -62,11 +68,32 @@ export default function ProductsScreen() {
   const [sortMode, setSortMode] = useState<SortMode>('newest');
   const [gridView, setGridView] = useState(false);
   const [showSortModal, setShowSortModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
   const barcodeInputRef = useRef<TextInput>(null);
-  const fabScale = useSharedValue(1);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+  const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
   const customerViewMode = settings.customerViewMode ?? false;
+
+  useEffect(() => {
+    loadRecentlyViewed();
+  }, []);
+
+  async function loadRecentlyViewed() {
+    const ids = await getRecentlyViewed();
+    setRecentIds(ids);
+  }
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadRecentlyViewed();
+    setTimeout(() => setRefreshing(false), 600);
+  }, []);
 
   const countByCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -124,24 +151,13 @@ export default function ProductsScreen() {
     }
   }, [filtered, sortMode]);
 
+  const recentProducts = useMemo(() => {
+    return recentIds
+      .map((id) => products.find((p) => p.id === id))
+      .filter(Boolean) as Product[];
+  }, [recentIds, products]);
+
   const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}-${animKey}-${gridView ? 'grid' : 'list'}-${sortMode}`;
-
-  function handleCalculatorPress() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/calculator');
-  }
-
-  function handleFabPressIn() {
-    fabScale.value = withSpring(0.88, { damping: 20, stiffness: 500 });
-  }
-
-  function handleFabPressOut() {
-    fabScale.value = withSpring(1, { damping: 12, stiffness: 300 });
-  }
-
-  const fabStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: fabScale.value }],
-  }));
 
   function handleCategorySelect(id: string | null) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -168,11 +184,63 @@ export default function ProductsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
+  function handleProductPress(product: Product) {
+    addToRecentlyViewed(product.id).then(() => loadRecentlyViewed());
+    router.push({ pathname: '/product/[id]', params: { id: product.id } });
+  }
+
+  function handleProductLongPress(product: Product) {
+    setPreviewProduct(product);
+    setShowPreview(true);
+  }
+
+  function handleDeleteWithUndo(product: Product) {
+    deleteProduct(product.id);
+    showToast({
+      message: `تم حذف "${product.name}"`,
+      type: 'info',
+      duration: 4500,
+      actionLabel: 'تراجع',
+      onAction: () => restoreProduct(product),
+    });
+  }
+
+  const speedDialActions: SpeedDialAction[] = [
+    {
+      icon: 'calculator-outline',
+      label: 'الحاسبة',
+      color: colors.primary,
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        router.push('/calculator');
+      },
+    },
+    {
+      icon: 'scan-outline',
+      label: 'الباركود',
+      color: '#6C5CE7',
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        router.push('/scanner');
+      },
+    },
+    {
+      icon: 'add-circle-outline',
+      label: 'منتج جديد',
+      color: '#22C55E',
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        router.push('/product/add');
+      },
+    },
+  ];
+
   const activeCategory = activeCategoryId && activeCategoryId !== NO_CATEGORY_ID
     ? getCategoryById(activeCategoryId)
     : null;
   const noCatCount = countByCategory[NO_CATEGORY_ID] || 0;
-  const currentSortLabel = SORT_OPTIONS.find((o) => o.key === sortMode)?.label ?? '';
+
+  const showRecentlyViewed = recentProducts.length > 0 && !query && !barcodeQuery;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -202,11 +270,7 @@ export default function ProductsScreen() {
                 { backgroundColor: gridView ? colors.primary + '18' : colors.secondary, opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Ionicons
-                name={gridView ? 'grid' : 'list'}
-                size={18}
-                color={gridView ? colors.primary : colors.silver}
-              />
+              <Ionicons name={gridView ? 'grid' : 'list'} size={18} color={gridView ? colors.primary : colors.silver} />
             </Pressable>
             <Pressable
               onPress={() => setShowSortModal(true)}
@@ -215,11 +279,7 @@ export default function ProductsScreen() {
                 { backgroundColor: sortMode !== 'newest' ? colors.primary + '18' : colors.secondary, opacity: pressed ? 0.7 : 1 },
               ]}
             >
-              <Ionicons
-                name="funnel-outline"
-                size={18}
-                color={sortMode !== 'newest' ? colors.primary : colors.silver}
-              />
+              <Ionicons name="funnel-outline" size={18} color={sortMode !== 'newest' ? colors.primary : colors.silver} />
             </Pressable>
             <Pressable
               onPress={toggleBarcodeSearch}
@@ -229,12 +289,6 @@ export default function ProductsScreen() {
               ]}
             >
               <Ionicons name="barcode-outline" size={20} color={showBarcodeSearch ? colors.primaryForeground : colors.primary} />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push('/scanner')}
-              style={({ pressed }) => [styles.iconBtn, { backgroundColor: colors.secondary, opacity: pressed ? 0.7 : 1 }]}
-            >
-              <Ionicons name="scan-outline" size={20} color={colors.primary} />
             </Pressable>
           </View>
         </View>
@@ -342,16 +396,18 @@ export default function ProductsScreen() {
 
       {/* Content */}
       {isLoading ? (
-        <Animated.View entering={FadeIn.duration(300)} style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <Animated.View entering={FadeIn.duration(200)} style={{ flex: 1 }}>
+          <SkeletonList count={6} grid={gridView} />
         </Animated.View>
-      ) : sortedFiltered.length === 0 ? (
+      ) : sortedFiltered.length === 0 && !showRecentlyViewed ? (
         <Animated.View entering={FadeInDown.duration(350).springify().damping(20)} style={styles.center}>
           <View style={[styles.emptyIconWrap, { backgroundColor: colors.secondary }]}>
             {activeCategory ? (
               <Ionicons name={activeCategory.icon as any} size={40} color={activeCategory.color} />
             ) : activeCategoryId === NO_CATEGORY_ID ? (
               <Ionicons name="apps-outline" size={40} color={colors.silver} />
+            ) : query || barcodeQuery ? (
+              <Ionicons name="search-outline" size={40} color={colors.silver} />
             ) : (
               <Ionicons name="cube-outline" size={40} color={colors.muted} />
             )}
@@ -376,9 +432,51 @@ export default function ProductsScreen() {
           keyExtractor={(item) => item.id}
           numColumns={gridView ? 2 : 1}
           columnWrapperStyle={gridView ? { gap: 8 } : undefined}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
+          ListHeaderComponent={
+            showRecentlyViewed ? (
+              <Animated.View entering={FadeIn.duration(300)} style={styles.recentSection}>
+                <View style={styles.recentHeader}>
+                  <Ionicons name="time-outline" size={14} color={colors.silver} />
+                  <Text style={[styles.recentTitle, { color: colors.mutedForeground }]}>شاهدته مؤخراً</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentList}>
+                  {recentProducts.map((p) => {
+                    const cat = getCategoryById(p.categoryId);
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => handleProductPress(p)}
+                        style={({ pressed }) => [
+                          styles.recentCard,
+                          { backgroundColor: colors.card, borderColor: cat?.color || colors.border, opacity: pressed ? 0.8 : 1 },
+                        ]}
+                      >
+                        <View style={[styles.recentDot, { backgroundColor: cat?.color || colors.border }]} />
+                        <Text style={[styles.recentName, { color: colors.foreground }]} numberOfLines={2}>
+                          {p.name}
+                        </Text>
+                        <Text style={[styles.recentPrice, { color: '#22C55E' }]} numberOfLines={1}>
+                          {p.sellingPriceSYP.toLocaleString('ar-SY')}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <View style={[styles.recentDivider, { backgroundColor: colors.border }]} />
+              </Animated.View>
+            ) : null
+          }
           renderItem={({ item, index }) => (
             <Animated.View
-              entering={FadeInUp.delay(index * 25).duration(300).springify().damping(20).stiffness(160)}
+              entering={FadeInUp.delay(index * 22).duration(280).springify().damping(20).stiffness(160)}
               layout={LinearTransition.springify().damping(20)}
               style={gridView ? styles.gridItem : undefined}
             >
@@ -387,30 +485,23 @@ export default function ProductsScreen() {
                 index={index}
                 grid={gridView}
                 customerViewMode={customerViewMode}
-                onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
+                onPress={() => handleProductPress(item)}
+                onLongPress={() => handleProductLongPress(item)}
               />
             </Animated.View>
           )}
-          contentContainerStyle={[styles.list, { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 90 }]}
+          contentContainerStyle={[styles.list, { paddingBottom: bottomInset + 100 }]}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={gridView ? undefined : () => <View style={{ height: 2 }} />}
         />
       )}
 
-      {/* FAB */}
-      <Animated.View
-        entering={FadeInDown.delay(300).springify().damping(14).stiffness(120)}
-        style={[styles.fab, { bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 24 }]}
-      >
-        <AnimatedPressable
-          style={[styles.fabInner, { backgroundColor: colors.primary }, fabStyle]}
-          onPress={handleCalculatorPress}
-          onPressIn={handleFabPressIn}
-          onPressOut={handleFabPressOut}
-        >
-          <Ionicons name="calculator-outline" size={26} color={colors.primaryForeground} />
-        </AnimatedPressable>
-      </Animated.View>
+      {/* Speed Dial FAB */}
+      <SpeedDial
+        actions={speedDialActions}
+        bottom={bottomInset + 24}
+        right={20}
+      />
 
       {/* Sort Modal */}
       <Modal visible={showSortModal} transparent animationType="slide" onRequestClose={() => setShowSortModal(false)}>
@@ -450,6 +541,14 @@ export default function ProductsScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Product Preview Bottom Sheet */}
+      <ProductPreviewSheet
+        product={previewProduct}
+        visible={showPreview}
+        onClose={() => setShowPreview(false)}
+        customerViewMode={customerViewMode}
+      />
     </View>
   );
 }
@@ -488,19 +587,6 @@ const styles = StyleSheet.create({
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
   emptySubtitle: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 20 },
-  fab: { position: 'absolute', right: 20 },
-  fabInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 10,
-  },
   gridItem: { flex: 1 },
   sortOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sortSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, paddingBottom: 40 },
@@ -511,4 +597,30 @@ const styles = StyleSheet.create({
   sortOptionLeft: { width: 24, alignItems: 'center' },
   sortOptionDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },
   sortOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  recentSection: { marginBottom: 8 },
+  recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end', paddingHorizontal: 4, paddingVertical: 4 },
+  recentTitle: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
+  recentList: { gap: 8, paddingVertical: 4 },
+  recentCard: {
+    width: 110,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 10,
+    gap: 4,
+    alignItems: 'flex-end',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  recentDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  recentName: { fontSize: 12, fontFamily: 'Tajawal_700Bold', textAlign: 'right', lineHeight: 17 },
+  recentPrice: { fontSize: 11, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  recentDivider: { height: 1, marginTop: 10 },
 });

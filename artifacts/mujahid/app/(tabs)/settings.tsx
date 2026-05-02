@@ -38,6 +38,13 @@ const CAT_ICON_OPTIONS = [
   'star-outline', 'heart-outline', 'gift-outline', 'cube-outline',
   'shirt-outline', 'home-outline', 'construct-outline', 'flower-outline',
   'fish-outline', 'pizza-outline', 'beer-outline', 'ice-cream-outline',
+  'fast-food-outline', 'wine-outline', 'storefront-outline', 'pricetag-outline',
+  'basket-outline', 'briefcase-outline', 'car-outline', 'phone-portrait-outline',
+  'desktop-outline', 'headset-outline', 'camera-outline', 'book-outline',
+  'medkit-outline', 'fitness-outline', 'color-palette-outline', 'hardware-chip-outline',
+  'diamond-outline', 'watch-outline', 'glasses-outline', 'ribbon-outline',
+  'sparkles-outline', 'snow-outline', 'footsteps-outline', 'barbell-outline',
+  'toy-outline', 'paw-outline', 'earth-outline', 'airplane-outline',
 ];
 
 const CAT_COLOR_OPTIONS = [
@@ -625,6 +632,50 @@ export default function SettingsScreen() {
             </View>
             <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
               <Ionicons name="finger-print" size={20} color={colors.primary} />
+            </View>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+          {/* Auto-Lock Timer */}
+          <View style={{ paddingVertical: 12, paddingHorizontal: 2, gap: 8 }}>
+            <View style={styles.secRow}>
+              <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+                <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل تلقائي</Text>
+                <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
+                  {(settings.autoLockMinutes ?? 0) === 0
+                    ? 'معطّل'
+                    : `بعد ${settings.autoLockMinutes} دقيقة من عدم النشاط`}
+                </Text>
+              </View>
+              <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="timer-outline" size={20} color={colors.primary} />
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {[0, 1, 5, 15, 30].map((mins) => {
+                const isActive = (settings.autoLockMinutes ?? 0) === mins;
+                return (
+                  <TouchableOpacity
+                    key={mins}
+                    style={[
+                      styles.autoLockPill,
+                      {
+                        backgroundColor: isActive ? colors.primary : colors.secondary,
+                        borderColor: isActive ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      updateSettings({ autoLockMinutes: mins });
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <Text style={[styles.autoLockPillText, { color: isActive ? colors.primaryForeground : colors.foreground }]}>
+                      {mins === 0 ? 'معطّل' : `${mins} د`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </View>
@@ -1351,6 +1402,8 @@ const styles = StyleSheet.create({
   },
   deleteCatOptionTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   deleteCatOptionSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  autoLockPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  autoLockPillText: { fontSize: 13, fontFamily: 'Tajawal_500Medium' },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetPanel: {
     borderTopLeftRadius: 28, borderTopRightRadius: 28,

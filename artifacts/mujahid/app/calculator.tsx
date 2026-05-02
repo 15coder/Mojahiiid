@@ -22,6 +22,8 @@ import { useProducts } from '@/context/ProductsContext';
 import { useColors } from '@/hooks/useColors';
 import { InvoiceItem, SavedInvoice, StatsPeriod, useInvoiceStore } from '@/utils/invoiceStore';
 import { formatArabicDateShort, formatPrice } from '@/utils/dateFormatter';
+import { ConfettiEffect } from '@/components/ConfettiEffect';
+import { InvoiceTemplate, deleteTemplate, getTemplates, saveTemplate } from '@/utils/templateStore';
 
 type TabId = 'invoice' | 'history' | 'stats';
 type DiscountType = 'pct' | 'fixed';
@@ -92,6 +94,12 @@ export default function CalculatorScreen() {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateNameInput, setTemplateNameInput] = useState('');
+  const isFirstSaveRef = useRef(true);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -139,6 +147,10 @@ export default function CalculatorScreen() {
     router.back();
   }
 
+  useEffect(() => {
+    getTemplates().then(setTemplates).catch(() => {});
+  }, [showTemplates]);
+
   function handleSaveInvoice() {
     const inv = saveActive();
     if (inv) {
@@ -146,7 +158,65 @@ export default function CalculatorScreen() {
       setShowDiscount(false);
       setDiscountInput('');
       setShowNoteInput(false);
+      if (isFirstSaveRef.current) {
+        isFirstSaveRef.current = false;
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 1400);
+      }
     }
+  }
+
+  async function handleLoadTemplate(template: InvoiceTemplate) {
+    discardActive();
+    setDiscount(template.discountPct, template.discountFixed);
+    if (template.note) setNote(template.note);
+    template.items.forEach((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      if (product) {
+        addItem({
+          productId: product.id,
+          name: product.name,
+          sellingPriceSYP: product.sellingPriceSYP,
+          sellingPriceUSD: product.sellingPriceUSD,
+        });
+        if (item.quantity > 1) {
+          updateQty(product.id, item.quantity);
+        }
+      }
+    });
+    setShowTemplates(false);
+    setActiveTab('invoice');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
+  async function handleSaveAsTemplate() {
+    if (!templateNameInput.trim()) return;
+    setSavingTemplate(true);
+    try {
+      await saveTemplate({
+        name: templateNameInput.trim(),
+        note: activeNote,
+        items: activeItems.map((it) => ({
+          productId: it.productId,
+          productName: it.name,
+          quantity: it.qty,
+          unitPrice: it.sellingPriceSYP,
+        })),
+        discountPct: activeDiscountPct,
+        discountFixed: activeDiscountFixed,
+      });
+      setTemplateNameInput('');
+      setShowTemplates(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {} finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    await deleteTemplate(id);
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
   function handleAddFromSearch(product: typeof products[0]) {
@@ -307,6 +377,14 @@ export default function CalculatorScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name={activeNote ? 'person' : 'person-outline'} size={18} color={activeNote ? colors.primary : colors.silver} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionBtnSquare, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => { setShowTemplates(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="bookmark-outline" size={18} color={colors.silver} />
             </TouchableOpacity>
           </View>
 
@@ -778,6 +856,80 @@ export default function CalculatorScreen() {
           </Animated.View>
         </Pressable>
       </Modal>
+
+      {/* ── TEMPLATES MODAL ─────────────────────────────── */}
+      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowTemplates(false)}>
+          <Animated.View
+            entering={FadeInDown.duration(280).springify()}
+            style={[styles.templatesSheet, { backgroundColor: colors.card, borderColor: colors.border, paddingBottom: bottomInset + 20 }]}
+          >
+            <Pressable onPress={() => {}}>
+              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+              <Text style={[styles.templatesTitle, { color: colors.foreground }]}>قوالب الفواتير</Text>
+
+              {hasItems && (
+                <View style={[styles.saveTemplateRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
+                  <TouchableOpacity
+                    style={[styles.saveTemplateBtn, { backgroundColor: colors.primary }]}
+                    onPress={handleSaveAsTemplate}
+                    disabled={!templateNameInput.trim() || savingTemplate}
+                  >
+                    <Ionicons name="bookmark" size={15} color={colors.primaryForeground} />
+                    <Text style={[styles.saveTemplateBtnText, { color: colors.primaryForeground }]}>حفظ</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[styles.templateNameInput, { color: colors.foreground, borderColor: colors.border }]}
+                    value={templateNameInput}
+                    onChangeText={setTemplateNameInput}
+                    placeholder="اسم القالب..."
+                    placeholderTextColor={colors.mutedForeground}
+                    textAlign="right"
+                  />
+                </View>
+              )}
+
+              <ScrollView style={styles.templatesList} showsVerticalScrollIndicator={false}>
+                {templates.length === 0 ? (
+                  <View style={styles.templatesEmpty}>
+                    <Ionicons name="bookmark-outline" size={36} color={colors.silver} />
+                    <Text style={[styles.templatesEmptyText, { color: colors.mutedForeground }]}>
+                      لا توجد قوالب محفوظة
+                    </Text>
+                  </View>
+                ) : (
+                  templates.map((t) => (
+                    <View key={t.id} style={[styles.templateCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <TouchableOpacity
+                        style={[styles.templateDeleteBtn, { backgroundColor: colors.destructive + '15' }]}
+                        onPress={() => handleDeleteTemplate(t.id)}
+                      >
+                        <Ionicons name="trash-outline" size={14} color={colors.destructive} />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+                        <Text style={[styles.templateName, { color: colors.foreground }]}>{t.name}</Text>
+                        <Text style={[styles.templateMeta, { color: colors.mutedForeground }]}>
+                          {t.items.length} منتج {t.note ? `· ${t.note}` : ''}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.templateLoadBtn, { backgroundColor: colors.primary }]}
+                        onPress={() => handleLoadTemplate(t)}
+                      >
+                        <Ionicons name="play" size={14} color={colors.primaryForeground} />
+                        <Text style={[styles.templateLoadText, { color: colors.primaryForeground }]}>تحميل</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* ── CONFETTI ─────────────────────────────────────── */}
+      <ConfettiEffect visible={showConfetti} onDone={() => setShowConfetti(false)} />
     </View>
   );
 }
@@ -907,6 +1059,22 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 15, fontFamily: 'Tajawal_700Bold', minWidth: 24, textAlign: 'center' },
   histSearchWrap: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
   histSearchRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, gap: 8, height: 38 },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
+  templatesSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, paddingHorizontal: 16, paddingTop: 4, maxHeight: '75%' },
+  templatesTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 14 },
+  saveTemplateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, borderWidth: 1, padding: 8, marginBottom: 12 },
+  saveTemplateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  saveTemplateBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  templateNameInput: { flex: 1, height: 38, fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'right', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10 },
+  templatesList: { maxHeight: 320 },
+  templatesEmpty: { alignItems: 'center', gap: 10, paddingVertical: 40 },
+  templatesEmptyText: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'center' },
+  templateCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8 },
+  templateDeleteBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  templateName: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  templateMeta: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  templateLoadBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  templateLoadText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   histSearchInput: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', height: 38 },
   savedInvoiceCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   savedInvoiceHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },

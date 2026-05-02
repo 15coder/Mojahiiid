@@ -19,6 +19,7 @@ interface ProductsContextValue {
   addProduct: (product: Omit<Product, 'id' | 'lastModified' | 'createdAt'>) => Promise<Product>;
   updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  restoreProduct: (product: Product) => Promise<void>;
   getProductById: (id: string) => Product | undefined;
   exportData: () => Promise<string>;
   importData: (jsonString: string) => Promise<number>;
@@ -103,6 +104,15 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const restoreProduct = useCallback(async (product: Product) => {
+    setProducts((prev) => {
+      if (prev.find((p) => p.id === product.id)) return prev;
+      const next = [product, ...prev];
+      saveProducts(next).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const getProductById = useCallback((id: string) => {
     return products.find((p) => p.id === id);
   }, [products]);
@@ -168,6 +178,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       addProduct,
       updateProduct,
       deleteProduct,
+      restoreProduct,
       getProductById,
       exportData,
       importData,

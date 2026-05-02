@@ -29,6 +29,8 @@ export interface AppSettings {
   appIconUri?: string;
   customerViewMode?: boolean;
   lastBackupDate?: string;
+  autoLockMinutes?: number;
+  lowStockThreshold?: number;
 }
 
 export type TrendDirection = 'up' | 'down' | 'neutral';

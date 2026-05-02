@@ -4,9 +4,10 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { DEFAULT_THEME_ID } from '@/constants/themes';
 import { AppSettings } from '@/types/product';
@@ -33,12 +34,15 @@ const DEFAULT_SETTINGS: AppSettings = {
   securityKey: generateSecurityKey(),
   customerViewMode: false,
   lastBackupDate: undefined,
+  autoLockMinutes: 0,
+  lowStockThreshold: 5,
 };
 
 interface SettingsContextValue {
   settings: AppSettings;
   updateSettings: (partial: Partial<AppSettings>) => Promise<void>;
   isLocked: boolean;
+  lock: () => void;
   unlock: (pin?: string) => boolean;
   isLoading: boolean;
   effectiveDarkMode: 'light' | 'dark';
@@ -51,6 +55,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [isLocked, setIsLocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [systemColorScheme, setSystemColorScheme] = useState<'light' | 'dark'>('light');
+  const backgroundTimeRef = useRef<number | null>(null);
+  const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     loadSettings();
@@ -65,6 +75,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        backgroundTimeRef.current = Date.now();
+      } else if (nextState === 'active') {
+        const bg = backgroundTimeRef.current;
+        if (bg !== null) {
+          const elapsedMin = (Date.now() - bg) / 60000;
+          const autoLock = settingsRef.current.autoLockMinutes ?? 0;
+          const shouldLock =
+            autoLock > 0 &&
+            elapsedMin >= autoLock &&
+            (settingsRef.current.pinEnabled || settingsRef.current.biometricEnabled);
+          if (shouldLock) {
+            setIsLocked(true);
+          }
+          backgroundTimeRef.current = null;
+        }
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
   async function loadSettings() {
     try {
       const stored = await AsyncStorage.getItem(SETTINGS_KEY);
@@ -72,6 +106,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const parsed: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
         if (!parsed.securityKey) parsed.securityKey = generateSecurityKey();
         setSettings(parsed);
+        settingsRef.current = parsed;
         if (parsed.pinEnabled && parsed.pinCode && Platform.OS !== 'web') {
           setIsLocked(true);
         } else if (parsed.biometricEnabled && Platform.OS !== 'web') {
@@ -87,27 +122,32 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback(async (partial: Partial<AppSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...partial };
+      settingsRef.current = next;
       AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
   }, []);
 
+  const lock = useCallback(() => {
+    setIsLocked(true);
+  }, []);
+
   const unlock = useCallback((pin?: string): boolean => {
     if (pin !== undefined) {
-      const currentSettings = settings;
+      const currentSettings = settingsRef.current;
       if (currentSettings.pinEnabled && currentSettings.pinCode) {
         if (pin !== currentSettings.pinCode) return false;
       }
     }
     setIsLocked(false);
     return true;
-  }, [settings]);
+  }, []);
 
   const effectiveDarkMode: 'light' | 'dark' =
     settings.darkMode === 'system' ? systemColorScheme : settings.darkMode;
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, isLocked, unlock, isLoading, effectiveDarkMode }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, isLocked, lock, unlock, isLoading, effectiveDarkMode }}>
       {children}
     </SettingsContext.Provider>
   );
