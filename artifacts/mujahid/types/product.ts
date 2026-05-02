@@ -14,6 +14,7 @@ export interface Product {
   previousSellingPriceSYP?: number;
   previousSellingPriceUSD?: number;
   lastModified: string;
+  createdAt?: string;
 }
 
 export interface AppSettings {
@@ -26,6 +27,8 @@ export interface AppSettings {
   pinCode: string;
   securityKey: string;
   appIconUri?: string;
+  customerViewMode?: boolean;
+  lastBackupDate?: string;
 }
 
 export type TrendDirection = 'up' | 'down' | 'neutral';

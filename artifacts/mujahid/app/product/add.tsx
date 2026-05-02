@@ -41,7 +41,7 @@ async function saveImageLocally(uri: string): Promise<string> {
 export default function AddProductScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { addProduct } = useProducts();
+  const { addProduct, products } = useProducts();
   const { settings } = useSettings();
   const { showToast } = useToast();
   const { visibleCategories } = useCategories();
@@ -148,12 +148,21 @@ export default function AddProductScreen() {
       showToast({ message: 'اسم المنتج مطلوب', type: 'error' });
       return;
     }
+    const trimmedBarcode = barcode.trim();
+    if (trimmedBarcode) {
+      const duplicate = products.find((p) => p.barcode === trimmedBarcode);
+      if (duplicate) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showToast({ message: `الباركود مستخدم مسبقاً في: "${duplicate.name}"`, type: 'error' });
+        return;
+      }
+    }
     try {
       setIsSaving(true);
       const savedPaths = await Promise.all(images.map(saveImageLocally));
       await addProduct({
         name: name.trim(),
-        barcode: barcode.trim() || undefined,
+        barcode: trimmedBarcode || undefined,
         categoryId: categoryId,
         imagePaths: savedPaths,
         costSYP: parseFloat(costSYP) || 0,
@@ -174,7 +183,6 @@ export default function AddProductScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
           <Ionicons name="close" size={22} color={colors.foreground} />
@@ -200,7 +208,6 @@ export default function AddProductScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Product Info */}
         <Section title="معلومات المنتج" icon="information-circle-outline" colors={colors}>
           <FieldLabel label="اسم المنتج *" colors={colors} />
           <TextInput
@@ -252,7 +259,6 @@ export default function AddProductScreen() {
           </View>
         </Section>
 
-        {/* Images */}
         <Section title="الصور" icon="images-outline" colors={colors}>
           <View style={styles.imagesRow}>
             {images.map((uri, idx) => (
@@ -275,7 +281,6 @@ export default function AddProductScreen() {
           </View>
         </Section>
 
-        {/* Cost */}
         <Section title="أسعار التكلفة" icon="trending-down-outline" colors={colors}>
           <View style={styles.priceRow}>
             <View style={styles.flex}>
@@ -305,7 +310,6 @@ export default function AddProductScreen() {
           </View>
         </Section>
 
-        {/* Selling */}
         <Section title="أسعار البيع" icon="trending-up-outline" colors={colors}>
           <View style={styles.priceRow}>
             <View style={styles.flex}>
@@ -338,7 +342,6 @@ export default function AddProductScreen() {
           </Text>
         </Section>
 
-        {/* Notes */}
         <Section title="ملاحظات" icon="document-text-outline" colors={colors}>
           <TextInput
             style={[styles.textarea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
@@ -353,23 +356,12 @@ export default function AddProductScreen() {
         </Section>
       </KeyboardAwareScrollView>
 
-      {/* Image Source Sheet */}
-      <Modal
-        visible={showImageSource}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowImageSource(false)}
-      >
+      <Modal visible={showImageSource} transparent animationType="slide" onRequestClose={() => setShowImageSource(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowImageSource(false)}>
           <View style={[styles.sourceSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.sheetTitle, { color: colors.foreground }]}>إضافة صورة</Text>
-
-            <TouchableOpacity
-              style={[styles.sourceOption, { borderColor: colors.border }]}
-              onPress={pickFromCamera}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.sourceOption, { borderColor: colors.border }]} onPress={pickFromCamera} activeOpacity={0.8}>
               <View style={[styles.sourceIconWrap, { backgroundColor: colors.primary + '15' }]}>
                 <Ionicons name="camera" size={28} color={colors.primary} />
               </View>
@@ -378,12 +370,7 @@ export default function AddProductScreen() {
                 <Text style={[styles.sourceSub, { color: colors.mutedForeground }]}>التقاط صورة جديدة الآن</Text>
               </View>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.sourceOption, { borderColor: colors.border }]}
-              onPress={pickFromGallery}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.sourceOption, { borderColor: colors.border }]} onPress={pickFromGallery} activeOpacity={0.8}>
               <View style={[styles.sourceIconWrap, { backgroundColor: colors.secondary }]}>
                 <Ionicons name="images" size={28} color={colors.primary} />
               </View>
@@ -392,30 +379,18 @@ export default function AddProductScreen() {
                 <Text style={[styles.sourceSub, { color: colors.mutedForeground }]}>اختيار صور موجودة</Text>
               </View>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.cancelBtn, { backgroundColor: colors.muted }]}
-              onPress={() => setShowImageSource(false)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.muted }]} onPress={() => setShowImageSource(false)} activeOpacity={0.8}>
               <Text style={[styles.cancelBtnText, { color: colors.foreground }]}>إلغاء</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
       </Modal>
 
-      {/* Category Picker Modal */}
-      <Modal
-        visible={showCategoryPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCategoryPicker(false)}
-      >
+      <Modal visible={showCategoryPicker} transparent animationType="slide" onRequestClose={() => setShowCategoryPicker(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowCategoryPicker(false)}>
           <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <Text style={[styles.modalTitle, { color: colors.foreground }]}>اختر القسم</Text>
-
             <ScrollView showsVerticalScrollIndicator={false}>
               <TouchableOpacity
                 style={[styles.categoryOption, categoryId === undefined && { backgroundColor: colors.secondary }]}
@@ -425,11 +400,8 @@ export default function AddProductScreen() {
                   <Ionicons name="apps-outline" size={20} color={colors.silver} />
                 </View>
                 <Text style={[styles.catOptionText, { color: colors.foreground }]}>بدون قسم</Text>
-                {categoryId === undefined && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                )}
+                {categoryId === undefined && <Ionicons name="checkmark-circle" size={20} color={colors.primary} />}
               </TouchableOpacity>
-
               {visibleCategories.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
@@ -440,9 +412,7 @@ export default function AddProductScreen() {
                     <Ionicons name={cat.icon as any} size={20} color={cat.color} />
                   </View>
                   <Text style={[styles.catOptionText, { color: colors.foreground }]}>{cat.name}</Text>
-                  {categoryId === cat.id && (
-                    <Ionicons name="checkmark-circle" size={20} color={cat.color} />
-                  )}
+                  {categoryId === cat.id && <Ionicons name="checkmark-circle" size={20} color={cat.color} />}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -468,9 +438,7 @@ function Section({ title, icon, colors, children }: { title: string; icon: strin
 }
 
 function FieldLabel({ label, colors }: { label: string; colors: any }) {
-  return (
-    <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-  );
+  return <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>;
 }
 
 const styles = StyleSheet.create({
@@ -483,38 +451,19 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'center',
-    flex: 1,
-  },
+  headerTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center', flex: 1 },
   headerBtn: { padding: 4, width: 36 },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
   saveBtnText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
   scroll: { flex: 1 },
   scrollContent: { padding: 14, gap: 4 },
   section: { marginBottom: 6 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    justifyContent: 'flex-end',
-    marginBottom: 6,
-  },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginBottom: 6 },
   sectionTitle: { fontSize: 12, fontFamily: 'Tajawal_700Bold', textAlign: 'right', letterSpacing: 0.3 },
   sectionCard: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
   fieldLabel: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Tajawal_500Medium' },
-  categorySelector: {
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+  categorySelector: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   selectedCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   selectedCategoryText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
   categoryPlaceholder: { fontSize: 14, fontFamily: 'Tajawal_400Regular', flex: 1, textAlign: 'right' },
@@ -530,38 +479,20 @@ const styles = StyleSheet.create({
   removeImgBtn: { position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   addImageBtn: { width: 76, height: 76, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 2 },
   addImageText: { fontSize: 10, fontFamily: 'Tajawal_400Regular' },
-  // Image source sheet
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sourceSheet: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    padding: 20,
-    paddingBottom: 32,
-    gap: 12,
-  },
+  sourceSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, padding: 20, paddingBottom: 32, gap: 12 },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 8 },
   sheetTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 4 },
-  sourceOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
+  sourceOption: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 8, borderRadius: 16, borderWidth: 1 },
   sourceIconWrap: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   sourceLabel: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   sourceSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  cancelBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  cancelBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   cancelBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
-  // Category modal
-  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '70%' },
+  modalSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, padding: 20, paddingBottom: 32, maxHeight: '70%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },
-  categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
+  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 12 },
+  categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12 },
   catOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   catOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
 });

@@ -29,7 +29,8 @@ import { useSettings } from '@/context/SettingsContext';
 import { useToast } from '@/context/ToastContext';
 import { useColors } from '@/hooks/useColors';
 import { THEMES, getThemeById } from '@/constants/themes';
-import { Category } from '@/types/category';
+import { Category, DEFAULT_CATEGORIES } from '@/types/category';
+import { formatArabicDateShort } from '@/utils/dateFormatter';
 
 const CAT_ICON_OPTIONS = [
   'nutrition-outline', 'leaf-outline', 'cafe-outline', 'flame-outline',
@@ -52,14 +53,17 @@ type ActiveModal =
   | 'pinSetup'
   | 'disablePinVerify'
   | 'verifyPinForRegen'
-  | 'deleteCat'
+  | 'verifyPinForKeyView'
+  | 'deleteCatStep1'
+  | 'deleteCatStep2'
+  | 'restoreDefaultCats'
   | 'confirmImport';
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { settings, updateSettings } = useSettings();
-  const { products, exportData, importData, updateAllProductsExchangeRate } = useProducts();
+  const { products, exportData, importData, updateAllProductsExchangeRate, moveCategoryProducts } = useProducts();
   const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, resetCategories } = useCategories();
   const { showToast } = useToast();
 
@@ -71,9 +75,14 @@ export default function SettingsScreen() {
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [deletingCat, setDeletingCat] = useState<Category | null>(null);
+  const [deleteCatAction, setDeleteCatAction] = useState<'delete' | 'move'>('delete');
+  const [moveToCatId, setMoveToCatId] = useState<string | null>(null);
   const [catName, setCatName] = useState('');
   const [catIcon, setCatIcon] = useState(CAT_ICON_OPTIONS[0]);
   const [catColor, setCatColor] = useState(CAT_COLOR_OPTIONS[0]);
+
+  // Security key visibility
+  const [showSecKey, setShowSecKey] = useState(false);
 
   // PIN modal state
   const [currentPinInput, setCurrentPinInput] = useState('');
@@ -119,11 +128,12 @@ export default function SettingsScreen() {
       setIsExporting(true);
       const productsJson = await exportData();
       const productsData = JSON.parse(productsJson);
+      const now = new Date().toISOString();
       const fullBackup = {
         ...productsData,
         version: 2,
         categories,
-        exportDate: new Date().toISOString(),
+        exportDate: now,
       };
       const json = JSON.stringify(fullBackup, null, 2);
       const path = `${FileSystem.cacheDirectory}mujahid-backup-${Date.now()}.json`;
@@ -131,6 +141,7 @@ export default function SettingsScreen() {
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(path, { mimeType: 'application/json' });
       else showToast({ message: 'تم حفظ الملف', type: 'success' });
+      await updateSettings({ lastBackupDate: now });
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل التصدير', type: 'error' });
     } finally {
@@ -207,17 +218,34 @@ export default function SettingsScreen() {
     setActiveModal('none');
   }
 
-  function openDeleteCat(cat: Category) {
+  function openDeleteCatStep1(cat: Category) {
     setDeletingCat(cat);
-    setActiveModal('deleteCat');
+    setDeleteCatAction('delete');
+    setMoveToCatId(null);
+    setActiveModal('deleteCatStep1');
   }
 
   async function confirmDeleteCat() {
     if (!deletingCat) return;
+    if (deleteCatAction === 'move' && moveToCatId) {
+      await moveCategoryProducts(deletingCat.id, moveToCatId);
+    }
     await deleteCategory(deletingCat.id);
-    showToast({ message: `تم حذف "${deletingCat.name}"`, type: 'info' });
+    const msg = deleteCatAction === 'move'
+      ? `تم نقل منتجات "${deletingCat.name}" وحذف القسم`
+      : `تم حذف "${deletingCat.name}"`;
+    showToast({ message: msg, type: 'info' });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setActiveModal('none');
     setDeletingCat(null);
+    setMoveToCatId(null);
+  }
+
+  async function handleRestoreDefaults() {
+    await resetCategories(DEFAULT_CATEGORIES);
+    showToast({ message: 'تم استعادة الأقسام الافتراضية', type: 'success' });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setActiveModal('none');
   }
 
   function openPinSetup() {
@@ -271,6 +299,27 @@ export default function SettingsScreen() {
     setActiveModal('verifyPinForRegen');
   }
 
+  function handleToggleSecKey() {
+    if (!showSecKey && settings.pinEnabled) {
+      setCurrentPinInput('');
+      setPinError('');
+      setActiveModal('verifyPinForKeyView');
+    } else {
+      setShowSecKey((v) => !v);
+    }
+  }
+
+  async function confirmVerifyPinForKeyView() {
+    if (currentPinInput !== settings.pinCode) {
+      setPinError('رمز PIN غير صحيح');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    setShowSecKey(true);
+    setActiveModal('none');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   async function confirmRegenerateKey() {
     if (settings.pinEnabled) {
       if (currentPinInput !== settings.pinCode) {
@@ -283,18 +332,24 @@ export default function SettingsScreen() {
     let key = '';
     for (let i = 0; i < 10; i++) key += chars.charAt(Math.floor(Math.random() * chars.length));
     await updateSettings({ securityKey: key });
+    setShowSecKey(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showToast({ message: 'تم توليد مفتاح أمان جديد', type: 'success' });
     setActiveModal('none');
   }
 
   async function copySecurityKey() {
+    if (!showSecKey) {
+      showToast({ message: 'اضغط 👁 لعرض المفتاح أولاً', type: 'warning' });
+      return;
+    }
     if (Platform.OS !== 'web') {
       await Clipboard.setStringAsync(settings.securityKey);
     }
     showToast({ message: 'تم نسخ المفتاح', type: 'success' });
   }
 
+  const otherCategories = categories.filter((c) => c.id !== deletingCat?.id);
   const appIcon = settings.appIconUri
     ? { uri: settings.appIconUri }
     : require('@/assets/images/icon.png');
@@ -342,9 +397,7 @@ export default function SettingsScreen() {
         >
           <Ionicons name="chevron-back" size={18} color={colors.silver} />
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <Text style={[styles.rowTitle, { color: colors.foreground }]}>
-              {currentTheme.emoji} {currentTheme.name}
-            </Text>
+            <Text style={[styles.rowTitle, { color: colors.foreground }]}>{currentTheme.emoji} {currentTheme.name}</Text>
             <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>اختر من 10 ثيمات</Text>
           </View>
           <View style={[styles.themePreviewDot, { backgroundColor: colors.primary }]} />
@@ -375,6 +428,28 @@ export default function SettingsScreen() {
               </React.Fragment>
             );
           })}
+        </View>
+
+        {/* ─── Display Preferences ─── */}
+        <SectionHeader title="تفضيلات العرض" colors={colors} icon="eye-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
+          <View style={[styles.secRow, { paddingVertical: 14 }]}>
+            <Switch
+              value={settings.customerViewMode ?? false}
+              onValueChange={(v) => { updateSettings({ customerViewMode: v }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              trackColor={{ false: colors.muted, true: colors.primary }}
+              thumbColor={colors.primaryForeground}
+            />
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.switchLabel, { color: colors.foreground }]}>وضع عرض الزبائن</Text>
+              <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
+                {settings.customerViewMode ? 'الأسعار الإجمالية فقط — موصى به للعملاء' : 'عرض كامل مع سعر الشراء والمخزون'}
+              </Text>
+            </View>
+            <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="people-outline" size={20} color={colors.primary} />
+            </View>
+          </View>
         </View>
 
         {/* Exchange Rate */}
@@ -412,7 +487,7 @@ export default function SettingsScreen() {
               {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
               <View style={styles.catRow}>
                 <View style={styles.catActions}>
-                  <TouchableOpacity onPress={() => openDeleteCat(cat)} style={[styles.catAction, { backgroundColor: colors.destructive + '15' }]}>
+                  <TouchableOpacity onPress={() => openDeleteCatStep1(cat)} style={[styles.catAction, { backgroundColor: colors.destructive + '15' }]}>
                     <Ionicons name="trash-outline" size={14} color={colors.destructive} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => openEditCat(cat)} style={[styles.catAction, { backgroundColor: colors.primary + '15' }]}>
@@ -436,6 +511,15 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.addCatBtn} onPress={openAddCat} activeOpacity={0.7}>
             <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
             <Text style={[styles.addCatText, { color: colors.primary }]}>إضافة قسم جديد</Text>
+          </TouchableOpacity>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <TouchableOpacity
+            style={[styles.addCatBtn, { gap: 6 }]}
+            onPress={() => setActiveModal('restoreDefaultCats')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="refresh-outline" size={16} color={colors.silver} />
+            <Text style={[styles.addCatText, { color: colors.silver }]}>استعادة الأقسام الافتراضية</Text>
           </TouchableOpacity>
         </View>
 
@@ -492,22 +576,29 @@ export default function SettingsScreen() {
             <View style={styles.secRow}>
               <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
                 <Text style={[styles.switchLabel, { color: colors.foreground }]}>مفتاح الأمان</Text>
-                <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>احفظه لاستعادة PIN</Text>
+                <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
+                  {settings.pinEnabled ? 'اضغط 👁 للعرض (يتطلب PIN)' : 'احفظه لاستعادة PIN'}
+                </Text>
               </View>
               <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
                 <Ionicons name="key-outline" size={20} color={colors.primary} />
               </View>
             </View>
-            <TouchableOpacity
-              style={[styles.keyDisplay, { backgroundColor: colors.input, borderColor: colors.border }]}
-              onPress={copySecurityKey}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="copy-outline" size={16} color={colors.primary} />
-              <Text style={[styles.keyText, { color: colors.foreground }]} selectable>
-                {settings.securityKey}
-              </Text>
-            </TouchableOpacity>
+            <View style={[styles.keyDisplay, { backgroundColor: colors.input, borderColor: colors.border }]}>
+              <TouchableOpacity onPress={handleToggleSecKey} style={styles.eyeBtn}>
+                <Ionicons name={showSecKey ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.primary} />
+              </TouchableOpacity>
+              <Pressable style={{ flex: 1 }} onPress={showSecKey ? copySecurityKey : undefined}>
+                <Text style={[styles.keyText, { color: showSecKey ? colors.foreground : colors.mutedForeground }]} selectable={showSecKey}>
+                  {showSecKey ? settings.securityKey : '●●●●●●●●●●'}
+                </Text>
+              </Pressable>
+              {showSecKey && (
+                <TouchableOpacity onPress={copySecurityKey}>
+                  <Ionicons name="copy-outline" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
             <TouchableOpacity
               style={[styles.regenBtn, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive + '30' }]}
               onPress={openVerifyPinForRegen}
@@ -541,7 +632,17 @@ export default function SettingsScreen() {
         {/* Backup */}
         <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="cloud-outline" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 10 }]}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>تصدير أو استيراد {products.length} منتج</Text>
+          {settings.lastBackupDate ? (
+            <View style={[styles.lastBackupRow, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '20' }]}>
+              <Text style={[styles.lastBackupText, { color: colors.primary }]}>
+                آخر نسخة: {formatArabicDateShort(settings.lastBackupDate)}
+              </Text>
+              <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+            </View>
+          ) : (
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>لم يتم إنشاء نسخة احتياطية بعد</Text>
+          )}
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>تصدير أو استيراد {products.length} منتج و{categories.length} قسم</Text>
           <View style={styles.backupBtns}>
             <TouchableOpacity style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]} onPress={handleExport} disabled={isExporting} activeOpacity={0.8}>
               <Ionicons name="download-outline" size={16} color={colors.primaryForeground} />
@@ -651,15 +752,164 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </BottomSheetModal>
 
-      {/* ─── Delete Category Confirm Modal ─── */}
+      {/* ─── Delete Category Step 1 ─── */}
+      <Modal
+        visible={activeModal === 'deleteCatStep1'}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal('none')}
+      >
+        <Pressable style={styles.confirmOverlay} onPress={() => setActiveModal('none')}>
+          <Animated.View
+            entering={FadeInDown.duration(250).springify()}
+            style={[styles.confirmBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Pressable onPress={() => {}}>
+              <View style={[styles.confirmIconWrap, { backgroundColor: colors.destructive + '15' }]}>
+                <Ionicons name="trash-outline" size={28} color={colors.destructive} />
+              </View>
+              <Text style={[styles.confirmTitle, { color: colors.foreground }]}>حذف "{deletingCat?.name}"</Text>
+              <Text style={[styles.confirmMsg, { color: colors.mutedForeground }]}>
+                ماذا تريد أن تفعل بمنتجات هذا القسم؟
+              </Text>
+
+              <View style={{ gap: 8 }}>
+                <TouchableOpacity
+                  style={[
+                    styles.deleteCatOption,
+                    { borderColor: deleteCatAction === 'move' ? colors.primary : colors.border, backgroundColor: deleteCatAction === 'move' ? colors.primary + '10' : colors.secondary },
+                  ]}
+                  onPress={() => setDeleteCatAction('move')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={deleteCatAction === 'move' ? 'radio-button-on' : 'radio-button-off'} size={20} color={deleteCatAction === 'move' ? colors.primary : colors.silver} />
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={[styles.deleteCatOptionTitle, { color: colors.foreground }]}>نقل المنتجات إلى قسم آخر</Text>
+                    <Text style={[styles.deleteCatOptionSub, { color: colors.mutedForeground }]}>اختر القسم في الخطوة التالية</Text>
+                  </View>
+                  <Ionicons name="git-merge-outline" size={20} color={colors.primary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.deleteCatOption,
+                    { borderColor: deleteCatAction === 'delete' ? colors.destructive : colors.border, backgroundColor: deleteCatAction === 'delete' ? colors.destructive + '10' : colors.secondary },
+                  ]}
+                  onPress={() => setDeleteCatAction('delete')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name={deleteCatAction === 'delete' ? 'radio-button-on' : 'radio-button-off'} size={20} color={deleteCatAction === 'delete' ? colors.destructive : colors.silver} />
+                  <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={[styles.deleteCatOptionTitle, { color: colors.foreground }]}>إبقاء المنتجات بدون قسم</Text>
+                    <Text style={[styles.deleteCatOptionSub, { color: colors.mutedForeground }]}>تُحذف الرابط بالقسم فقط</Text>
+                  </View>
+                  <Ionicons name="layers-outline" size={20} color={colors.destructive} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.confirmBtns, { marginTop: 12 }]}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.secondary, flex: 1 }]}
+                  onPress={() => setActiveModal('none')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: deleteCatAction === 'move' ? colors.primary : colors.destructive, flex: 1 }]}
+                  onPress={() => {
+                    if (deleteCatAction === 'move') {
+                      if (otherCategories.length === 0) {
+                        showToast({ message: 'لا توجد أقسام أخرى للنقل إليها', type: 'warning' });
+                        return;
+                      }
+                      setMoveToCatId(otherCategories[0].id);
+                      setActiveModal('deleteCatStep2');
+                    } else {
+                      confirmDeleteCat();
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.confirmBtnText, { color: '#fff' }]}>
+                    {deleteCatAction === 'move' ? 'التالي' : 'حذف'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* ─── Delete Category Step 2 (Choose target) ─── */}
+      <Modal
+        visible={activeModal === 'deleteCatStep2'}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setActiveModal('deleteCatStep1')}
+      >
+        <Pressable style={styles.sheetBackdrop} onPress={() => setActiveModal('deleteCatStep1')}>
+          <View style={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable onPress={() => {}}>
+              <View style={[styles.modalHandle, { backgroundColor: colors.border, alignSelf: 'center' }]} />
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>اختر القسم الهدف</Text>
+              <Text style={[styles.confirmMsg, { color: colors.mutedForeground, marginBottom: 12 }]}>
+                سيتم نقل جميع منتجات "{deletingCat?.name}" إلى:
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                {otherCategories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.id}
+                    style={[
+                      styles.targetCatRow,
+                      {
+                        borderColor: moveToCatId === cat.id ? cat.color : colors.border,
+                        backgroundColor: moveToCatId === cat.id ? cat.color + '12' : colors.secondary,
+                      },
+                    ]}
+                    onPress={() => setMoveToCatId(cat.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={moveToCatId === cat.id ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color={moveToCatId === cat.id ? cat.color : colors.silver}
+                    />
+                    <Text style={[styles.targetCatName, { color: colors.foreground, flex: 1, textAlign: 'right' }]}>{cat.name}</Text>
+                    <View style={[styles.catIconWrap, { backgroundColor: cat.color + '20' }]}>
+                      <Ionicons name={cat.icon as any} size={16} color={cat.color} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={[styles.confirmBtns, { marginTop: 14 }]}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.secondary, flex: 1 }]}
+                  onPress={() => setActiveModal('deleteCatStep1')}
+                >
+                  <Text style={[styles.confirmBtnText, { color: colors.foreground }]}>رجوع</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.primary, flex: 1 }]}
+                  onPress={confirmDeleteCat}
+                >
+                  <Text style={[styles.confirmBtnText, { color: '#fff' }]}>نقل وحذف</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ─── Restore Default Categories ─── */}
       <ConfirmModal
-        visible={activeModal === 'deleteCat'}
-        onClose={() => { setActiveModal('none'); setDeletingCat(null); }}
-        onConfirm={confirmDeleteCat}
+        visible={activeModal === 'restoreDefaultCats'}
+        onClose={() => setActiveModal('none')}
+        onConfirm={handleRestoreDefaults}
         colors={colors}
-        title="حذف القسم"
-        message={`هل تريد حذف القسم "${deletingCat?.name}" نهائياً؟`}
-        confirmLabel="حذف"
+        title="استعادة الأقسام الافتراضية"
+        message="سيتم استبدال جميع الأقسام الحالية بالأقسام الافتراضية. منتجاتك لن تُحذف لكن روابطها بالأقسام ستُزال."
+        confirmLabel="استعادة"
         confirmDestructive
       />
 
@@ -807,6 +1057,43 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </BottomSheetModal>
 
+      {/* ─── Verify PIN for Security Key View ─── */}
+      <BottomSheetModal
+        visible={activeModal === 'verifyPinForKeyView'}
+        onClose={() => setActiveModal('none')}
+        colors={colors}
+        title="عرض مفتاح الأمان"
+        keyboardAware
+      >
+        <View style={[styles.warnBox, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
+          <Ionicons name="key-outline" size={20} color={colors.primary} />
+          <Text style={[styles.warnText, { color: colors.primary }]}>
+            أدخل رمز PIN للوصول إلى مفتاح الأمان
+          </Text>
+        </View>
+        {pinError ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}>
+            <Ionicons name="alert-circle-outline" size={16} color={colors.destructive} />
+            <Text style={[styles.errorText, { color: colors.destructive }]}>{pinError}</Text>
+          </View>
+        ) : null}
+        <ModalLabel text="رمز PIN" colors={colors} />
+        <TextInput
+          style={[styles.modalInput, { color: colors.foreground, borderColor: pinError ? colors.destructive : colors.border, backgroundColor: colors.input, letterSpacing: 8, textAlign: 'center' }]}
+          value={currentPinInput}
+          onChangeText={(t) => { setCurrentPinInput(t.replace(/[^0-9]/g, '').slice(0, 4)); setPinError(''); }}
+          placeholder="● ● ● ●"
+          placeholderTextColor={colors.mutedForeground}
+          keyboardType="number-pad"
+          secureTextEntry
+          maxLength={4}
+          autoFocus
+        />
+        <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]} onPress={confirmVerifyPinForKeyView}>
+          <Text style={[styles.modalSaveBtnText, { color: colors.primaryForeground }]}>عرض المفتاح</Text>
+        </TouchableOpacity>
+      </BottomSheetModal>
+
       {/* ─── Verify PIN for Key Regeneration ─── */}
       <BottomSheetModal
         visible={activeModal === 'verifyPinForRegen'}
@@ -843,7 +1130,7 @@ export default function SettingsScreen() {
             />
           </>
         )}
-        <View style={[styles.warnBtns]}>
+        <View style={styles.warnBtns}>
           <TouchableOpacity
             style={[styles.modalSaveBtn, { backgroundColor: colors.secondary, flex: 1 }]}
             onPress={() => setActiveModal('none')}
@@ -979,6 +1266,24 @@ const styles = StyleSheet.create({
   pageSubtitle: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
   scroll: { flex: 1 },
   content: { paddingHorizontal: 14, paddingTop: 8, gap: 6 },
+  addProductCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    gap: 12,
+    marginBottom: 4,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  addProductTitle: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
+  addProductSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular' },
+  addProductIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1019,23 +1324,44 @@ const styles = StyleSheet.create({
   catIconWrap: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   addCatBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   addCatText: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
-  // Security
   secRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 2 },
   secIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   secActionLabel: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   switchLabel: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   switchNote: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  keyDisplay: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
+  keyDisplay: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12, borderWidth: 1 },
   keyText: { flex: 1, fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'center', letterSpacing: 3 },
+  eyeBtn: { padding: 4 },
   regenBtn: { height: 42, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   regenBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  lastBackupRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'flex-end',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+  },
+  lastBackupText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
   backupBtns: { flexDirection: 'row', gap: 10 },
   backupBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
   backupBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   infoValue: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   infoLabel: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  // Modals
+  deleteCatOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 14, padding: 12,
+  },
+  deleteCatOptionTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  deleteCatOptionSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheetPanel: {
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderWidth: 1, borderBottomWidth: 0,
+    padding: 20, paddingBottom: 40,
+  },
+  targetCatRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderRadius: 12, padding: 12, marginBottom: 8,
+  },
+  targetCatName: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   kavFull: { flex: 1 },
   modalBackdropFlex: { flex: 1 },
   modalSheet: {
@@ -1053,7 +1379,6 @@ const styles = StyleSheet.create({
   modalInput: { height: 52, borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, fontSize: 16, fontFamily: 'Tajawal_500Medium', marginBottom: 2 },
   modalSaveBtn: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
   modalSaveBtnText: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
-  // Category modal fields
   previewRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, justifyContent: 'flex-end' },
   previewIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 18, fontFamily: 'Tajawal_700Bold' },
@@ -1061,43 +1386,22 @@ const styles = StyleSheet.create({
   colorDot: { width: 34, height: 34, borderRadius: 17 },
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
   iconOption: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  // Theme modal
   themeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderRadius: 10, paddingHorizontal: 4 },
   themeRowText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   themeCheckEmpty: { width: 22, height: 22 },
   themeSwatches: { flexDirection: 'row', gap: 4 },
   swatch: { width: 14, height: 14, borderRadius: 7 },
-  // Warning / error boxes
   warnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
   warnText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 20 },
   warnBtns: { flexDirection: 'row', gap: 10 },
   errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
   errorText: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  // Confirm modal
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  confirmBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
-  confirmIconWrap: { width: 68, height: 68, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 14 },
-  confirmTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
-  confirmMsg: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  confirmBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 20 },
+  confirmIconWrap: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12 },
+  confirmTitle: { fontSize: 19, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
+  confirmMsg: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 20, marginBottom: 16 },
   confirmBtns: { flexDirection: 'row', gap: 10 },
   confirmBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   confirmBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
-  // Add Product CTA
-  addProductCTA: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    borderRadius: 18,
-    padding: 18,
-    marginTop: 8,
-    marginBottom: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  addProductTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold' },
-  addProductSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular' },
-  addProductIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });

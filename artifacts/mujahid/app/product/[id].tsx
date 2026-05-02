@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlaceholderImage } from '@/components/PlaceholderImage';
 import { PriceTrendIcon } from '@/components/PriceTrendIcon';
 import { useProducts } from '@/context/ProductsContext';
+import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
 import { formatArabicDate, formatPrice } from '@/utils/dateFormatter';
 import { getTrend } from '@/utils/priceUtils';
@@ -31,10 +33,12 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getProductById, deleteProduct } = useProducts();
+  const { settings } = useSettings();
   const [imageIdx, setImageIdx] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const product = getProductById(id);
+  const customerViewMode = settings.customerViewMode ?? false;
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -61,6 +65,25 @@ export default function ProductDetailScreen() {
     router.push({ pathname: '/product/edit/[id]', params: { id: product!.id } });
   }
 
+  async function handleShare() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const lines: string[] = [
+      `📦 ${product!.name}`,
+    ];
+    if (product!.barcode) lines.push(`🔢 الباركود: ${product!.barcode}`);
+    lines.push('━━━━━━━━━━━━━━━');
+    lines.push(`💰 سعر البيع: ${formatPrice(product!.sellingPriceSYP, 'SYP')}`);
+    if (!customerViewMode) {
+      lines.push(`💸 سعر التكلفة: ${formatPrice(product!.costSYP, 'SYP')}`);
+    }
+    if (product!.notes) lines.push(`📝 ${product!.notes}`);
+    lines.push('━━━━━━━━━━━━━━━');
+    lines.push('📱 تطبيق مجاهد للتجارة');
+    try {
+      await Share.share({ message: lines.join('\n') });
+    } catch {}
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -70,9 +93,14 @@ export default function ProductDetailScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
           {product.name}
         </Text>
-        <TouchableOpacity onPress={handleEdit} style={[styles.iconBtn, { backgroundColor: colors.secondary }]}>
-          <Ionicons name="create-outline" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={handleShare} style={[styles.iconBtn, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="share-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleEdit} style={[styles.iconBtn, { backgroundColor: colors.secondary }]}>
+            <Ionicons name="create-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -127,9 +155,16 @@ export default function ProductDetailScreen() {
             </View>
           ) : null}
 
-          <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
-            آخر تعديل: {formatArabicDate(product.lastModified)}
-          </Text>
+          <View style={styles.timestampBlock}>
+            <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
+              آخر تعديل: {formatArabicDate(product.lastModified)}
+            </Text>
+            {product.createdAt && (
+              <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
+                تاريخ الإضافة: {formatArabicDate(product.createdAt)}
+              </Text>
+            )}
+          </View>
         </View>
 
         <PriceCard
@@ -139,23 +174,34 @@ export default function ProductDetailScreen() {
           priceSYP={product.sellingPriceSYP}
           priceUSD={product.sellingPriceUSD}
           prevSYP={product.previousSellingPriceSYP}
-          prevUSD={product.previousSellingPriceUSD}
           trend={sellTrend}
           colors={colors}
           highlight
         />
 
-        <PriceCard
-          title="سعر التكلفة"
-          icon="trending-down"
-          iconColor={colors.mutedForeground}
-          priceSYP={product.costSYP}
-          priceUSD={product.costUSD}
-          prevSYP={product.previousCostSYP}
-          prevUSD={product.previousCostUSD}
-          trend={costTrend}
-          colors={colors}
-        />
+        {!customerViewMode && (
+          <PriceCard
+            title="سعر التكلفة"
+            icon="trending-down"
+            iconColor={colors.mutedForeground}
+            priceSYP={product.costSYP}
+            priceUSD={product.costUSD}
+            prevSYP={product.previousCostSYP}
+            trend={costTrend}
+            colors={colors}
+          />
+        )}
+
+        {!customerViewMode && product.costSYP > 0 && product.sellingPriceSYP > 0 && (
+          <View style={[styles.profitCard, { backgroundColor: product.sellingPriceSYP >= product.costSYP ? colors.success + '12' : colors.destructive + '12', borderColor: product.sellingPriceSYP >= product.costSYP ? colors.success + '30' : colors.destructive + '30' }]}>
+            <Text style={[styles.profitLabel, { color: product.sellingPriceSYP >= product.costSYP ? colors.success : colors.destructive }]}>
+              {product.sellingPriceSYP >= product.costSYP ? '📈 هامش الربح' : '📉 خسارة'}
+            </Text>
+            <Text style={[styles.profitValue, { color: product.sellingPriceSYP >= product.costSYP ? colors.success : colors.destructive }]}>
+              {formatPrice(product.sellingPriceSYP - product.costSYP, 'SYP')} ({Math.round(((product.sellingPriceSYP - product.costSYP) / product.costSYP) * 100)}%)
+            </Text>
+          </View>
+        )}
 
         {product.notes ? (
           <View style={[styles.notesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -177,6 +223,13 @@ export default function ProductDetailScreen() {
             <Text style={[styles.editBtnText, { color: colors.primaryForeground }]}>تعديل</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.shareBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+            onPress={handleShare}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="share-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.deleteBtn, { backgroundColor: colors.destructive + '15', borderColor: colors.destructive + '30' }]}
             onPress={() => setShowDeleteModal(true)}
             activeOpacity={0.85}
@@ -187,7 +240,6 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Custom Delete Modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
           <Animated.View
@@ -228,11 +280,10 @@ export default function ProductDetailScreen() {
 }
 
 function PriceCard({
-  title, icon, iconColor, priceSYP, priceUSD, prevSYP, prevUSD, trend, colors, highlight,
+  title, icon, iconColor, priceSYP, priceUSD, prevSYP, trend, colors, highlight,
 }: {
   title: string; icon: string; iconColor: string;
-  priceSYP: number; priceUSD: number;
-  prevSYP?: number; prevUSD?: number;
+  priceSYP: number; priceUSD: number; prevSYP?: number;
   trend: any; colors: any; highlight?: boolean;
 }) {
   return (
@@ -243,7 +294,7 @@ function PriceCard({
       <View style={styles.priceCardHeader}>
         <View style={styles.trendRow}>
           <PriceTrendIcon trend={trend} size={16} />
-          {prevSYP !== undefined && prevSYP !== priceSYP && (
+          {prevSYP !== undefined && prevSYP !== priceSYP && prevSYP > 0 && (
             <Text style={[styles.prevPrice, { color: colors.mutedForeground }]}>
               {formatPrice(prevSYP, 'SYP')}
             </Text>
@@ -274,19 +325,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: 'Tajawal_700Bold',
-    flex: 1,
-    textAlign: 'center',
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  headerTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', flex: 1, textAlign: 'center' },
+  headerRight: { flexDirection: 'row', gap: 6 },
+  iconBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 12 },
   imageSection: { alignItems: 'center', gap: 10 },
@@ -296,31 +337,19 @@ const styles = StyleSheet.create({
   thumbnail: { width: 56, height: 56 },
   infoSection: { alignItems: 'flex-end', gap: 6 },
   productName: { fontSize: 24, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  barcodePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
+  barcodePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   barcodeText: { fontSize: 13, fontFamily: 'Tajawal_500Medium' },
+  timestampBlock: { gap: 2, alignItems: 'flex-end' },
   timestamp: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  profitCard: { borderRadius: 14, padding: 14, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  profitLabel: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  profitValue: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
   priceCard: { borderRadius: 16, padding: 16, gap: 4, alignItems: 'flex-end' },
-  priceCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    alignItems: 'center',
-  },
+  priceCardHeader: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' },
   priceTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   priceCardTitle: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   trendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  prevPrice: {
-    fontSize: 12,
-    fontFamily: 'Tajawal_400Regular',
-    textDecorationLine: 'line-through',
-  },
+  prevPrice: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textDecorationLine: 'line-through' },
   bigPrice: { fontSize: 28, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   usdPrice: { fontSize: 16, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   notesCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
@@ -328,76 +357,17 @@ const styles = StyleSheet.create({
   notesTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   notesText: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 22 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  editFullBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
+  editFullBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
+  shareBtn: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1 },
   editBtnText: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
   notFound: { fontSize: 18, fontFamily: 'Tajawal_500Medium', textAlign: 'center', marginTop: 40 },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  modalBox: {
-    width: '100%',
-    borderRadius: 24,
-    borderWidth: 1,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  modalIconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: 14,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  modalMessage: {
-    fontSize: 14,
-    fontFamily: 'Tajawal_400Regular',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  modalBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12 },
+  modalIconWrap: { width: 68, height: 68, borderRadius: 20, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 14 },
+  modalTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
+  modalMessage: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
   modalBtns: { flexDirection: 'row', gap: 10 },
-  modalBtn: {
-    flex: 1,
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-  },
+  modalBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   modalBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
 });

@@ -31,6 +31,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   pinEnabled: false,
   pinCode: '',
   securityKey: generateSecurityKey(),
+  customerViewMode: false,
+  lastBackupDate: undefined,
 };
 
 interface SettingsContextValue {

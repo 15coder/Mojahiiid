@@ -5,12 +5,14 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import Animated, {
@@ -35,6 +37,17 @@ import { searchProducts } from '@/utils/fuzzySearch';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const NO_CATEGORY_ID = '__none__';
 
+type SortMode = 'newest' | 'oldest' | 'az' | 'za' | 'price_asc' | 'price_desc';
+
+const SORT_OPTIONS: { key: SortMode; label: string; icon: string }[] = [
+  { key: 'newest', label: 'الأحدث أولاً', icon: 'time-outline' },
+  { key: 'oldest', label: 'الأقدم أولاً', icon: 'hourglass-outline' },
+  { key: 'az', label: 'أ — ي', icon: 'text-outline' },
+  { key: 'za', label: 'ي — أ', icon: 'text-outline' },
+  { key: 'price_asc', label: 'السعر: الأقل أولاً', icon: 'trending-up-outline' },
+  { key: 'price_desc', label: 'السعر: الأعلى أولاً', icon: 'trending-down-outline' },
+];
+
 export default function ProductsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -46,10 +59,14 @@ export default function ProductsScreen() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [showBarcodeSearch, setShowBarcodeSearch] = useState(false);
   const [animKey, setAnimKey] = useState(0);
+  const [sortMode, setSortMode] = useState<SortMode>('newest');
+  const [gridView, setGridView] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
   const barcodeInputRef = useRef<TextInput>(null);
   const fabScale = useSharedValue(1);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
+  const customerViewMode = settings.customerViewMode ?? false;
 
   const countByCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -73,24 +90,41 @@ export default function ProductsScreen() {
 
   const filtered = useMemo(() => {
     let list = products;
-
     if (barcodeQuery.trim()) {
       const q = barcodeQuery.trim();
       list = list.filter((p) => p.barcode?.includes(q));
     } else if (query.trim()) {
       list = searchProducts(query, list);
     }
-
     if (activeCategoryId === NO_CATEGORY_ID) {
       list = list.filter((p) => !p.categoryId);
     } else if (activeCategoryId) {
       list = list.filter((p) => p.categoryId === activeCategoryId);
     }
-
     return list;
   }, [query, barcodeQuery, products, activeCategoryId]);
 
-  const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}-${animKey}`;
+  const sortedFiltered = useMemo(() => {
+    const list = [...filtered];
+    switch (sortMode) {
+      case 'newest':
+        return list.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      case 'oldest':
+        return list.sort((a, b) => new Date(a.lastModified).getTime() - new Date(b.lastModified).getTime());
+      case 'az':
+        return list.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+      case 'za':
+        return list.sort((a, b) => b.name.localeCompare(a.name, 'ar'));
+      case 'price_asc':
+        return list.sort((a, b) => a.sellingPriceSYP - b.sellingPriceSYP);
+      case 'price_desc':
+        return list.sort((a, b) => b.sellingPriceSYP - a.sellingPriceSYP);
+      default:
+        return list;
+    }
+  }, [filtered, sortMode]);
+
+  const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}-${animKey}-${gridView ? 'grid' : 'list'}-${sortMode}`;
 
   function handleCalculatorPress() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -123,10 +157,22 @@ export default function ProductsScreen() {
     });
   }
 
+  function handleSortSelect(key: SortMode) {
+    setSortMode(key);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSortModal(false);
+  }
+
+  function toggleGrid() {
+    setGridView((v) => !v);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
   const activeCategory = activeCategoryId && activeCategoryId !== NO_CATEGORY_ID
     ? getCategoryById(activeCategoryId)
     : null;
   const noCatCount = countByCategory[NO_CATEGORY_ID] || 0;
+  const currentSortLabel = SORT_OPTIONS.find((o) => o.key === sortMode)?.label ?? '';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -145,10 +191,36 @@ export default function ProductsScreen() {
 
           <View style={styles.headerCenter}>
             <Text style={[styles.headerTitle, { color: colors.foreground }]}>{settings.appName || 'المنتجات'}</Text>
-            <Text style={[styles.headerCount, { color: colors.silver }]}>{filtered.length}/{products.length}</Text>
+            <Text style={[styles.headerCount, { color: colors.silver }]}>{sortedFiltered.length}/{products.length}</Text>
           </View>
 
           <View style={styles.headerActions}>
+            <Pressable
+              onPress={toggleGrid}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                { backgroundColor: gridView ? colors.primary + '18' : colors.secondary, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Ionicons
+                name={gridView ? 'grid' : 'list'}
+                size={18}
+                color={gridView ? colors.primary : colors.silver}
+              />
+            </Pressable>
+            <Pressable
+              onPress={() => setShowSortModal(true)}
+              style={({ pressed }) => [
+                styles.iconBtn,
+                { backgroundColor: sortMode !== 'newest' ? colors.primary + '18' : colors.secondary, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Ionicons
+                name="funnel-outline"
+                size={18}
+                color={sortMode !== 'newest' ? colors.primary : colors.silver}
+              />
+            </Pressable>
             <Pressable
               onPress={toggleBarcodeSearch}
               style={({ pressed }) => [
@@ -273,7 +345,7 @@ export default function ProductsScreen() {
         <Animated.View entering={FadeIn.duration(300)} style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
         </Animated.View>
-      ) : filtered.length === 0 ? (
+      ) : sortedFiltered.length === 0 ? (
         <Animated.View entering={FadeInDown.duration(350).springify().damping(20)} style={styles.center}>
           <View style={[styles.emptyIconWrap, { backgroundColor: colors.secondary }]}>
             {activeCategory ? (
@@ -294,38 +366,38 @@ export default function ProductsScreen() {
               : 'لا توجد منتجات'}
           </Text>
           <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-            {query || barcodeQuery ? 'جرّب كلمة بحث مختلفة' : 'أضف منتجاً من صفحة الإعدادات'}
+            {query || barcodeQuery ? 'جرّب كلمة بحث مختلفة' : 'أضف منتجاً من زر + في الأسفل'}
           </Text>
         </Animated.View>
       ) : (
         <FlatList<Product>
           key={listKey}
-          data={filtered}
+          data={sortedFiltered}
           keyExtractor={(item) => item.id}
+          numColumns={gridView ? 2 : 1}
+          columnWrapperStyle={gridView ? { gap: 8 } : undefined}
           renderItem={({ item, index }) => (
             <Animated.View
-              entering={FadeInUp
-                .delay(index * 35)
-                .duration(350)
-                .springify()
-                .damping(20)
-                .stiffness(160)}
+              entering={FadeInUp.delay(index * 25).duration(300).springify().damping(20).stiffness(160)}
               layout={LinearTransition.springify().damping(20)}
+              style={gridView ? styles.gridItem : undefined}
             >
               <ProductCard
                 product={item}
                 index={index}
+                grid={gridView}
+                customerViewMode={customerViewMode}
                 onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
               />
             </Animated.View>
           )}
           contentContainerStyle={[styles.list, { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 90 }]}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={{ height: 2 }} />}
+          ItemSeparatorComponent={gridView ? undefined : () => <View style={{ height: 2 }} />}
         />
       )}
 
-      {/* FAB — Calculator */}
+      {/* FAB */}
       <Animated.View
         entering={FadeInDown.delay(300).springify().damping(14).stiffness(120)}
         style={[styles.fab, { bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 24 }]}
@@ -339,6 +411,45 @@ export default function ProductsScreen() {
           <Ionicons name="calculator-outline" size={26} color={colors.primaryForeground} />
         </AnimatedPressable>
       </Animated.View>
+
+      {/* Sort Modal */}
+      <Modal visible={showSortModal} transparent animationType="slide" onRequestClose={() => setShowSortModal(false)}>
+        <Pressable style={styles.sortOverlay} onPress={() => setShowSortModal(false)}>
+          <View style={[styles.sortSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable onPress={() => {}}>
+              <View style={[styles.sortHandle, { backgroundColor: colors.border }]} />
+              <View style={styles.sortHeader}>
+                <Ionicons name="funnel-outline" size={16} color={colors.primary} />
+                <Text style={[styles.sortTitle, { color: colors.foreground }]}>ترتيب المنتجات</Text>
+              </View>
+              {SORT_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    styles.sortOption,
+                    { borderBottomColor: colors.border },
+                    sortMode === opt.key && { backgroundColor: colors.primary + '10' },
+                  ]}
+                  onPress={() => handleSortSelect(opt.key)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.sortOptionLeft}>
+                    {sortMode === opt.key ? (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                    ) : (
+                      <View style={[styles.sortOptionDot, { borderColor: colors.border }]} />
+                    )}
+                  </View>
+                  <Text style={[styles.sortOptionText, { color: sortMode === opt.key ? colors.primary : colors.foreground }]}>
+                    {opt.label}
+                  </Text>
+                  <Ionicons name={opt.icon as any} size={16} color={sortMode === opt.key ? colors.primary : colors.silver} />
+                </TouchableOpacity>
+              ))}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -357,11 +468,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerCenter: { alignItems: 'center', flex: 1, paddingHorizontal: 8 },
-  headerTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
+  headerCenter: { alignItems: 'center', flex: 1, paddingHorizontal: 4 },
+  headerTitle: { fontSize: 19, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
   headerCount: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'center' },
-  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  iconBtn: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, gap: 8, height: 44 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: 'Tajawal_400Regular', height: 44 },
   barcodeSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -372,7 +483,7 @@ const styles = StyleSheet.create({
   categoryTabText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
   countBadge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   countBadgeText: { fontSize: 10, fontFamily: 'Tajawal_700Bold' },
-  list: { paddingTop: 8, paddingHorizontal: 12 },
+  list: { paddingTop: 8, paddingHorizontal: 12, gap: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
   emptyIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
@@ -390,4 +501,14 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 10,
   },
+  gridItem: { flex: 1 },
+  sortOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  sortSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, paddingBottom: 40 },
+  sortHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
+  sortHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'flex-end', paddingHorizontal: 20, paddingVertical: 12 },
+  sortTitle: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
+  sortOption: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, gap: 12 },
+  sortOptionLeft: { width: 24, alignItems: 'center' },
+  sortOptionDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },
+  sortOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
 });

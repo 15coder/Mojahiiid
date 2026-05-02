@@ -16,13 +16,14 @@ const PRODUCTS_KEY = '@mujahid:products';
 interface ProductsContextValue {
   products: Product[];
   isLoading: boolean;
-  addProduct: (product: Omit<Product, 'id' | 'lastModified'>) => Promise<Product>;
+  addProduct: (product: Omit<Product, 'id' | 'lastModified' | 'createdAt'>) => Promise<Product>;
   updateProduct: (id: string, updates: Partial<Omit<Product, 'id'>>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   getProductById: (id: string) => Product | undefined;
   exportData: () => Promise<string>;
   importData: (jsonString: string) => Promise<number>;
   updateAllProductsExchangeRate: (newRate: number) => Promise<void>;
+  moveCategoryProducts: (fromCategoryId: string, toCategoryId: string | undefined) => Promise<void>;
 }
 
 const ProductsContext = createContext<ProductsContextValue | null>(null);
@@ -48,7 +49,6 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         rebuildIndex(parsed);
       }
     } catch {
-      // start fresh
     } finally {
       setIsLoading(false);
     }
@@ -59,11 +59,13 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     rebuildIndex(list);
   }
 
-  const addProduct = useCallback(async (data: Omit<Product, 'id' | 'lastModified'>): Promise<Product> => {
+  const addProduct = useCallback(async (data: Omit<Product, 'id' | 'lastModified' | 'createdAt'>): Promise<Product> => {
+    const now = new Date().toISOString();
     const newProduct: Product = {
       ...data,
       id: generateId(),
-      lastModified: new Date().toISOString(),
+      lastModified: now,
+      createdAt: now,
     };
     setProducts((prev) => {
       const next = [newProduct, ...prev];
@@ -149,6 +151,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const moveCategoryProducts = useCallback(async (fromCategoryId: string, toCategoryId: string | undefined) => {
+    setProducts((prev) => {
+      const next = prev.map((p) =>
+        p.categoryId === fromCategoryId ? { ...p, categoryId: toCategoryId } : p
+      );
+      saveProducts(next).catch(() => {});
+      return next;
+    });
+  }, []);
+
   return (
     <ProductsContext.Provider value={{
       products,
@@ -160,6 +172,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       exportData,
       importData,
       updateAllProductsExchangeRate,
+      moveCategoryProducts,
     }}>
       {children}
     </ProductsContext.Provider>
