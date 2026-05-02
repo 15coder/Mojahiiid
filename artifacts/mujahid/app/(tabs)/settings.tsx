@@ -302,6 +302,21 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 60 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* ─── Add Product CTA ─── */}
+        <TouchableOpacity
+          style={[styles.addProductCTA, { backgroundColor: colors.primary }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/product/add'); }}
+          activeOpacity={0.85}
+        >
+          <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+            <Text style={[styles.addProductTitle, { color: colors.primaryForeground }]}>إضافة منتج جديد</Text>
+            <Text style={[styles.addProductSub, { color: colors.primaryForeground + 'BB' }]}>أضف منتجاً إلى قاعدة البيانات</Text>
+          </View>
+          <View style={[styles.addProductIcon, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+            <Ionicons name="add-circle" size={30} color={colors.primaryForeground} />
+          </View>
+        </TouchableOpacity>
+
         {/* Theme */}
         <SectionHeader title="ثيم الألوان" colors={colors} icon="color-palette-outline" />
         <TouchableOpacity
@@ -1051,4 +1066,22 @@ const styles = StyleSheet.create({
   confirmBtns: { flexDirection: 'row', gap: 10 },
   confirmBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   confirmBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  // Add Product CTA
+  addProductCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 18,
+    padding: 18,
+    marginTop: 8,
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  addProductTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold' },
+  addProductSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular' },
+  addProductIcon: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 });

@@ -92,9 +92,9 @@ export default function ProductsScreen() {
 
   const listKey = `${activeCategoryId ?? 'all'}-${query}-${barcodeQuery}-${animKey}`;
 
-  function handleAddPress() {
+  function handleCalculatorPress() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/product/add');
+    router.push('/calculator');
   }
 
   function handleFabPressIn() {
@@ -294,7 +294,7 @@ export default function ProductsScreen() {
               : 'لا توجد منتجات'}
           </Text>
           <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-            {query || barcodeQuery ? 'جرّب كلمة بحث مختلفة' : 'اضغط + لإضافة منتج جديد'}
+            {query || barcodeQuery ? 'جرّب كلمة بحث مختلفة' : 'أضف منتجاً من صفحة الإعدادات'}
           </Text>
         </Animated.View>
       ) : (
@@ -325,18 +325,18 @@ export default function ProductsScreen() {
         />
       )}
 
-      {/* FAB */}
+      {/* FAB — Calculator */}
       <Animated.View
         entering={FadeInDown.delay(300).springify().damping(14).stiffness(120)}
         style={[styles.fab, { bottom: (Platform.OS === 'web' ? 34 : insets.bottom) + 24 }]}
       >
         <AnimatedPressable
           style={[styles.fabInner, { backgroundColor: colors.primary }, fabStyle]}
-          onPress={handleAddPress}
+          onPress={handleCalculatorPress}
           onPressIn={handleFabPressIn}
           onPressOut={handleFabPressOut}
         >
-          <Ionicons name="add" size={30} color={colors.primaryForeground} />
+          <Ionicons name="calculator-outline" size={26} color={colors.primaryForeground} />
         </AnimatedPressable>
       </Animated.View>
     </View>
