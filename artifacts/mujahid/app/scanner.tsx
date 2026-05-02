@@ -262,6 +262,11 @@ export default function ScannerScreen() {
             >
               <Ionicons name={flashOn ? 'flash' : 'flash-outline'} size={22} color={flashOn ? '#FFD700' : '#fff'} />
             </TouchableOpacity>
+            {isCalculatorMode && (
+              <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()}>
+                <Text style={styles.doneBtnText}>تم ✓</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -428,6 +433,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  doneBtn: {
+    backgroundColor: '#22C55E',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  doneBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Tajawal_700Bold',
   },
   countBadge: {
     minWidth: 28,

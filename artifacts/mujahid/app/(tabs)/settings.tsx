@@ -60,7 +60,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { settings, updateSettings } = useSettings();
   const { products, exportData, importData, updateAllProductsExchangeRate } = useProducts();
-  const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility } = useCategories();
+  const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, resetCategories } = useCategories();
   const { showToast } = useToast();
 
   const [rateInput, setRateInput] = useState(String(settings.exchangeRate));
@@ -117,7 +117,15 @@ export default function SettingsScreen() {
     }
     try {
       setIsExporting(true);
-      const json = await exportData();
+      const productsJson = await exportData();
+      const productsData = JSON.parse(productsJson);
+      const fullBackup = {
+        ...productsData,
+        version: 2,
+        categories,
+        exportDate: new Date().toISOString(),
+      };
+      const json = JSON.stringify(fullBackup, null, 2);
       const path = `${FileSystem.cacheDirectory}mujahid-backup-${Date.now()}.json`;
       await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
       const canShare = await Sharing.isAvailableAsync();
@@ -152,7 +160,15 @@ export default function SettingsScreen() {
   async function confirmImportData() {
     try {
       const count = await importData(pendingImportJson);
-      showToast({ message: `تم استيراد ${count} منتج`, type: 'success' });
+      let msg = `تم استيراد ${count} منتج`;
+      try {
+        const parsed = JSON.parse(pendingImportJson);
+        if (parsed.categories && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+          await resetCategories(parsed.categories);
+          msg += ` و${parsed.categories.length} قسم`;
+        }
+      } catch {}
+      showToast({ message: msg, type: 'success' });
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل الاستيراد', type: 'error' });
     }

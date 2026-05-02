@@ -24,6 +24,7 @@ interface CategoriesContextValue {
   deleteCategory: (id: string) => Promise<void>;
   toggleCategoryVisibility: (id: string) => Promise<void>;
   getCategoryById: (id: string | undefined) => Category | undefined;
+  resetCategories: (newCategories: Category[]) => Promise<void>;
 }
 
 const CategoriesContext = createContext<CategoriesContextValue | null>(null);
@@ -93,6 +94,11 @@ export function CategoriesProvider({ children }: { children: React.ReactNode }) 
     return categories.find((c) => c.id === id);
   }, [categories]);
 
+  const resetCategories = useCallback(async (newCategories: Category[]) => {
+    setCategories(newCategories);
+    await saveCategories(newCategories);
+  }, []);
+
   const visibleCategories = categories.filter((c) => !c.hidden).sort((a, b) => a.order - b.order);
 
   return (
@@ -105,6 +111,7 @@ export function CategoriesProvider({ children }: { children: React.ReactNode }) 
       deleteCategory,
       toggleCategoryVisibility,
       getCategoryById,
+      resetCategories,
     }}>
       {children}
     </CategoriesContext.Provider>

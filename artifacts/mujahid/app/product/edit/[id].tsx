@@ -4,8 +4,9 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  BackHandler,
   Modal,
   Platform,
   Pressable,
@@ -60,9 +61,45 @@ export default function EditProductScreen() {
   const [images, setImages] = useState<string[]>(product?.imagePaths ?? []);
   const [isSaving, setIsSaving] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const selectedCategory = visibleCategories.find((c) => c.id === categoryId);
+
+  // ── Dirty check ────────────────────────────────────────────
+  const isDirty = useMemo(() => {
+    if (!product) return false;
+    return (
+      name !== (product.name ?? '') ||
+      barcode !== (product.barcode ?? '') ||
+      costSYP !== String(product.costSYP ?? '') ||
+      costUSD !== String(product.costUSD ?? '') ||
+      sellSYP !== String(product.sellingPriceSYP ?? '') ||
+      sellUSD !== String(product.sellingPriceUSD ?? '') ||
+      notes !== (product.notes ?? '') ||
+      categoryId !== product.categoryId
+    );
+  }, [name, barcode, costSYP, costUSD, sellSYP, sellUSD, notes, categoryId, product]);
+
+  // ── Android hardware back ───────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isDirty) {
+        setShowDiscardModal(true);
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [isDirty]);
+
+  // ── Live profit margin ──────────────────────────────────────
+  const costSYPNum = parseFloat(costSYP) || 0;
+  const sellSYPNum = parseFloat(sellSYP) || 0;
+  const profitSYP = sellSYPNum - costSYPNum;
+  const marginPct = costSYPNum > 0 ? (profitSYP / costSYPNum) * 100 : 0;
+  const showMargin = costSYPNum > 0 || sellSYPNum > 0;
 
   if (!product) {
     return (
@@ -72,28 +109,41 @@ export default function EditProductScreen() {
     );
   }
 
+  // ── Price field handlers ────────────────────────────────────
   function handleCostSYPChange(val: string) {
     setCostSYP(val);
+    if (!val.trim() || val === '.') { setCostUSD(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n) && settings.exchangeRate > 0) setCostUSD(String(sypToUsd(n, settings.exchangeRate)));
   }
 
   function handleCostUSDChange(val: string) {
     setCostUSD(val);
+    if (!val.trim() || val === '.') { setCostSYP(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n)) setCostSYP(String(usdToSyp(n, settings.exchangeRate)));
   }
 
   function handleSellSYPChange(val: string) {
     setSellSYP(val);
+    if (!val.trim() || val === '.') { setSellUSD(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n) && settings.exchangeRate > 0) setSellUSD(String(sypToUsd(n, settings.exchangeRate)));
   }
 
   function handleSellUSDChange(val: string) {
     setSellUSD(val);
+    if (!val.trim() || val === '.') { setSellSYP(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n)) setSellSYP(String(usdToSyp(n, settings.exchangeRate)));
+  }
+
+  function handleClose() {
+    if (isDirty) {
+      setShowDiscardModal(true);
+    } else {
+      router.back();
+    }
   }
 
   async function pickImages() {
@@ -145,10 +195,15 @@ export default function EditProductScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topInset + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+        <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
           <Ionicons name="close" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.foreground }]}>تعديل المنتج</Text>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>تعديل المنتج</Text>
+          {isDirty && (
+            <Text style={[styles.unsavedBadge, { color: colors.destructive }]}>• تغييرات غير محفوظة</Text>
+          )}
+        </View>
         <TouchableOpacity
           onPress={handleSave}
           disabled={isSaving}
@@ -210,44 +265,104 @@ export default function EditProductScreen() {
             {images.map((uri, idx) => (
               <View key={idx} style={styles.imageWrapper}>
                 <Image source={{ uri }} style={[styles.imageThumb, { borderRadius: 10 }]} contentFit="cover" />
-                <TouchableOpacity style={[styles.removeImgBtn, { backgroundColor: colors.destructive }]} onPress={() => removeImage(idx)}>
+                <TouchableOpacity
+                  style={[styles.removeImgBtn, { backgroundColor: colors.destructive }]}
+                  onPress={() => removeImage(idx)}
+                >
                   <Ionicons name="close" size={12} color="#fff" />
                 </TouchableOpacity>
               </View>
             ))}
             {images.length < 5 && (
-              <TouchableOpacity style={[styles.addImageBtn, { borderColor: colors.border, backgroundColor: colors.secondary }]} onPress={pickImages}>
+              <TouchableOpacity
+                style={[styles.addImageBtn, { borderColor: colors.border, backgroundColor: colors.secondary }]}
+                onPress={pickImages}
+              >
                 <Ionicons name="camera-outline" size={24} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
         </FieldSection>
 
+        {/* Cost prices */}
         <View style={styles.twoCol}>
           <View style={styles.flex}>
             <FieldSection title="تكلفة ل.س" colors={colors}>
-              <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]} value={costSYP} onChangeText={handleCostSYPChange} keyboardType="numeric" textAlign="right" placeholder="0" placeholderTextColor={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={costSYP}
+                onChangeText={handleCostSYPChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+              />
             </FieldSection>
           </View>
           <View style={styles.flex}>
             <FieldSection title="تكلفة USD" colors={colors}>
-              <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]} value={costUSD} onChangeText={handleCostUSDChange} keyboardType="numeric" textAlign="right" placeholder="0.00" placeholderTextColor={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={costUSD}
+                onChangeText={handleCostUSDChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+              />
             </FieldSection>
           </View>
         </View>
 
+        {/* Selling prices */}
         <View style={styles.twoCol}>
           <View style={styles.flex}>
             <FieldSection title="بيع ل.س" colors={colors}>
-              <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]} value={sellSYP} onChangeText={handleSellSYPChange} keyboardType="numeric" textAlign="right" placeholder="0" placeholderTextColor={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={sellSYP}
+                onChangeText={handleSellSYPChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+              />
             </FieldSection>
           </View>
           <View style={styles.flex}>
             <FieldSection title="بيع USD" colors={colors}>
-              <TextInput style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]} value={sellUSD} onChangeText={handleSellUSDChange} keyboardType="numeric" textAlign="right" placeholder="0.00" placeholderTextColor={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={sellUSD}
+                onChangeText={handleSellUSDChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0.00"
+                placeholderTextColor={colors.mutedForeground}
+              />
             </FieldSection>
           </View>
         </View>
+
+        {/* Live profit margin */}
+        {showMargin && (
+          <View
+            style={[
+              styles.profitRow,
+              { backgroundColor: profitSYP >= 0 ? '#22C55E18' : '#EF444418', borderColor: profitSYP >= 0 ? '#22C55E33' : '#EF444433' },
+            ]}
+          >
+            <Ionicons
+              name={profitSYP >= 0 ? 'trending-up-outline' : 'trending-down-outline'}
+              size={18}
+              color={profitSYP >= 0 ? '#22C55E' : '#EF4444'}
+            />
+            <Text style={[styles.profitText, { color: profitSYP >= 0 ? '#22C55E' : '#EF4444' }]}>
+              {profitSYP >= 0 ? 'ربح' : 'خسارة'}: {Math.abs(profitSYP).toLocaleString('ar-SY')} ل.س
+              {costSYPNum > 0 && ` (${Math.abs(marginPct).toFixed(1)}%)`}
+            </Text>
+          </View>
+        )}
 
         <FieldSection title="ملاحظات" colors={colors}>
           <TextInput
@@ -297,6 +412,37 @@ export default function EditProductScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Discard Changes Modal */}
+      <Modal visible={showDiscardModal} transparent animationType="fade" onRequestClose={() => setShowDiscardModal(false)}>
+        <Pressable style={styles.discardOverlay} onPress={() => setShowDiscardModal(false)}>
+          <View style={[styles.discardBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable onPress={() => {}}>
+              <View style={[styles.discardIcon, { backgroundColor: colors.destructive + '15' }]}>
+                <Ionicons name="warning-outline" size={28} color={colors.destructive} />
+              </View>
+              <Text style={[styles.discardTitle, { color: colors.foreground }]}>تجاهل التعديلات؟</Text>
+              <Text style={[styles.discardMsg, { color: colors.mutedForeground }]}>
+                لديك تغييرات غير محفوظة. هل تريد تجاهلها والخروج؟
+              </Text>
+              <View style={styles.discardBtns}>
+                <TouchableOpacity
+                  style={[styles.discardBtn, { backgroundColor: colors.secondary }]}
+                  onPress={() => setShowDiscardModal(false)}
+                >
+                  <Text style={[styles.discardBtnText, { color: colors.foreground }]}>تراجع</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.discardBtn, { backgroundColor: colors.destructive }]}
+                  onPress={() => { setShowDiscardModal(false); router.back(); }}
+                >
+                  <Text style={[styles.discardBtnText, { color: '#fff' }]}>تجاهل</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -320,7 +466,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
-  headerTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center', flex: 1 },
+  headerTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  unsavedBadge: { fontSize: 10, fontFamily: 'Tajawal_500Medium' },
   headerBtn: { padding: 4, width: 36 },
   saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
   saveBtnText: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
@@ -349,6 +497,17 @@ const styles = StyleSheet.create({
   imageThumb: { width: 78, height: 78 },
   removeImgBtn: { position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   addImageBtn: { width: 78, height: 78, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  // Profit
+  profitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  profitText: { fontSize: 14, fontFamily: 'Tajawal_700Bold', flex: 1, textAlign: 'right' },
+  // Category modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '70%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
@@ -356,4 +515,13 @@ const styles = StyleSheet.create({
   categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
   catOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   catOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  // Discard modal
+  discardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  discardBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 24 },
+  discardIcon: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12 },
+  discardTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
+  discardMsg: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  discardBtns: { flexDirection: 'row', gap: 10 },
+  discardBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  discardBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
 });
