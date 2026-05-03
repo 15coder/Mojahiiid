@@ -19,34 +19,36 @@ import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from 'react-native-re
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
+import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
 import { InvoiceItem, SavedInvoice, StatsPeriod, useInvoiceStore } from '@/utils/invoiceStore';
-import { formatArabicDateShort, formatPrice } from '@/utils/dateFormatter';
+import { formatArabicDateShort, formatPrice, formatPriceCurrency } from '@/utils/dateFormatter';
 import { ConfettiEffect } from '@/components/ConfettiEffect';
-import { InvoiceTemplate, deleteTemplate, getTemplates, saveTemplate } from '@/utils/templateStore';
 
 type TabId = 'invoice' | 'history' | 'stats';
 type DiscountType = 'pct' | 'fixed';
 
 const BRANDING_TEXT = '🏪 مصدرة عن تطبيق "مجاهد للتجارة"\n💻 برمجة وتطوير: نداء الرحمن عبّود';
 
-function buildShareText(inv: SavedInvoice): string {
+function buildShareText(inv: SavedInvoice, displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD'): string {
   const lines: string[] = [];
   lines.push(`🧾 فاتورة رقم ${inv.number}`);
+  if (inv.name) lines.push(`📋 ${inv.name}`);
   if (inv.note) lines.push(`👤 ${inv.note}`);
+  if (!inv.name && !inv.note) lines.push('📋 فاتورة بدون اسم');
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   inv.items.forEach((item) => {
     const sub = item.sellingPriceSYP * item.qty;
-    lines.push(`• ${item.name} × ${item.qty} = ${formatPrice(sub, 'SYP')}`);
+    lines.push(`• ${item.name} × ${item.qty} = ${formatPriceCurrency(sub, displayCurrency)}`);
   });
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   if ((inv.discountPct && inv.discountPct > 0) || (inv.discountFixed && inv.discountFixed > 0)) {
-    lines.push(`المجموع الجزئي: ${formatPrice(inv.totalSYP, 'SYP')}`);
-    if (inv.discountPct) lines.push(`🏷️ خصم ${inv.discountPct}%: -${formatPrice(inv.totalSYP - (inv.finalTotalSYP ?? inv.totalSYP), 'SYP')}`);
-    if (inv.discountFixed) lines.push(`🏷️ خصم ثابت: -${formatPrice(inv.discountFixed, 'SYP')}`);
-    lines.push(`💰 الإجمالي بعد الخصم: ${formatPrice(inv.finalTotalSYP ?? inv.totalSYP, 'SYP')}`);
+    lines.push(`المجموع الجزئي: ${formatPriceCurrency(inv.totalSYP, displayCurrency)}`);
+    if (inv.discountPct) lines.push(`🏷️ خصم ${inv.discountPct}%: -${formatPriceCurrency(inv.totalSYP - (inv.finalTotalSYP ?? inv.totalSYP), displayCurrency)}`);
+    if (inv.discountFixed) lines.push(`🏷️ خصم ثابت: -${formatPriceCurrency(inv.discountFixed, displayCurrency)}`);
+    lines.push(`💰 الإجمالي بعد الخصم: ${formatPriceCurrency(inv.finalTotalSYP ?? inv.totalSYP, displayCurrency)}`);
   } else {
-    lines.push(`💰 المجموع: ${formatPrice(inv.totalSYP, 'SYP')}`);
+    lines.push(`💰 المجموع: ${formatPriceCurrency(inv.finalTotalSYP ?? inv.totalSYP, displayCurrency)}`);
   }
   lines.push(`📅 ${formatArabicDateShort(inv.createdAt)}`);
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
@@ -58,8 +60,12 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { products } = useProducts();
+  const { settings } = useSettings();
+  const displayCurrency = settings.displayCurrency ?? 'SYP_NEW';
+
   const {
     activeItems,
+    activeName,
     activeNote,
     activeDiscountPct,
     activeDiscountFixed,
@@ -72,6 +78,7 @@ export default function CalculatorScreen() {
     addItem,
     updateQty,
     removeItem,
+    setName,
     setNote,
     setDiscount,
     saveActive,
@@ -84,6 +91,7 @@ export default function CalculatorScreen() {
   const [activeTab, setActiveTab] = useState<TabId>('invoice');
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNameInput, setShowNameInput] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountType, setDiscountType] = useState<DiscountType>('pct');
@@ -95,10 +103,6 @@ export default function CalculatorScreen() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
-  const [savingTemplate, setSavingTemplate] = useState(false);
-  const [templateNameInput, setTemplateNameInput] = useState('');
   const isFirstSaveRef = useRef(true);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -121,6 +125,7 @@ export default function CalculatorScreen() {
     return savedInvoices.filter(
       (inv) =>
         String(inv.number).includes(q) ||
+        (inv.name && inv.name.includes(q)) ||
         (inv.note && inv.note.includes(q))
     );
   }, [savedInvoices, historySearch]);
@@ -147,16 +152,13 @@ export default function CalculatorScreen() {
     router.back();
   }
 
-  useEffect(() => {
-    getTemplates().then(setTemplates).catch(() => {});
-  }, [showTemplates]);
-
   function handleSaveInvoice() {
     const inv = saveActive();
     if (inv) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowDiscount(false);
       setDiscountInput('');
+      setShowNameInput(false);
       setShowNoteInput(false);
       if (isFirstSaveRef.current) {
         isFirstSaveRef.current = false;
@@ -164,59 +166,6 @@ export default function CalculatorScreen() {
         setTimeout(() => setShowConfetti(false), 1400);
       }
     }
-  }
-
-  async function handleLoadTemplate(template: InvoiceTemplate) {
-    discardActive();
-    setDiscount(template.discountPct, template.discountFixed);
-    if (template.note) setNote(template.note);
-    template.items.forEach((item) => {
-      const product = products.find((p) => p.id === item.productId);
-      if (product) {
-        addItem({
-          productId: product.id,
-          name: product.name,
-          sellingPriceSYP: product.sellingPriceSYP,
-          sellingPriceUSD: product.sellingPriceUSD,
-        });
-        if (item.quantity > 1) {
-          updateQty(product.id, item.quantity);
-        }
-      }
-    });
-    setShowTemplates(false);
-    setActiveTab('invoice');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }
-
-  async function handleSaveAsTemplate() {
-    if (!templateNameInput.trim()) return;
-    setSavingTemplate(true);
-    try {
-      await saveTemplate({
-        name: templateNameInput.trim(),
-        note: activeNote,
-        items: activeItems.map((it) => ({
-          productId: it.productId,
-          productName: it.name,
-          quantity: it.qty,
-          unitPrice: it.sellingPriceSYP,
-        })),
-        discountPct: activeDiscountPct,
-        discountFixed: activeDiscountFixed,
-      });
-      setTemplateNameInput('');
-      setShowTemplates(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {} finally {
-      setSavingTemplate(false);
-    }
-  }
-
-  async function handleDeleteTemplate(id: string) {
-    await deleteTemplate(id);
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
   function handleAddFromSearch(product: typeof products[0]) {
@@ -242,6 +191,7 @@ export default function CalculatorScreen() {
     setDiscount(0, 0);
     setDiscountInput('');
     setShowDiscount(false);
+    setShowNameInput(false);
     setShowNoteInput(false);
     setShowClearConfirm(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -273,7 +223,7 @@ export default function CalculatorScreen() {
   async function handleShareInvoice(inv: SavedInvoice) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Share.share({ message: buildShareText(inv) });
+      await Share.share({ message: buildShareText(inv, displayCurrency) });
     } catch {}
   }
 
@@ -295,6 +245,9 @@ export default function CalculatorScreen() {
 
   const totalItems = activeItems.reduce((s, i) => s + i.qty, 0);
 
+  const currencyLabel =
+    displayCurrency === 'SYP_OLD' ? 'ل.س.ق' : displayCurrency === 'USD' ? '$' : 'ل.س';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -309,7 +262,9 @@ export default function CalculatorScreen() {
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>حاسبة الفواتير</Text>
           <Text style={[styles.headerSub, { color: colors.silver }]}>
-            {hasItems ? `فاتورة ${activeNumber} — ${activeItems.length} منتج` : `فاتورة ${activeNumber}`}
+            {hasItems
+              ? `فاتورة #${activeNumber} — ${activeItems.length} منتج`
+              : `فاتورة #${activeNumber}`}
           </Text>
         </View>
 
@@ -371,35 +326,66 @@ export default function CalculatorScreen() {
               <Text style={[styles.actionBtnText, { color: colors.primary }]}>{showSearch ? 'إغلاق' : 'بحث'}</Text>
             </TouchableOpacity>
 
+            {/* Name button */}
             <TouchableOpacity
-              style={[styles.actionBtnSquare, { backgroundColor: showNoteInput ? colors.primary + '18' : colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => setShowNoteInput((v) => !v)}
+              style={[styles.actionBtnSquare, { backgroundColor: showNameInput ? colors.primary + '18' : colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => { setShowNameInput((v) => !v); if (showNoteInput) setShowNoteInput(false); }}
               activeOpacity={0.85}
             >
-              <Ionicons name={activeNote ? 'person' : 'person-outline'} size={18} color={activeNote ? colors.primary : colors.silver} />
+              <Ionicons name={activeName ? 'document-text' : 'document-text-outline'} size={18} color={activeName ? colors.primary : colors.silver} />
             </TouchableOpacity>
 
+            {/* Note button */}
             <TouchableOpacity
-              style={[styles.actionBtnSquare, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
-              onPress={() => { setShowTemplates(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+              style={[styles.actionBtnSquare, { backgroundColor: showNoteInput ? colors.primary + '18' : colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
+              onPress={() => { setShowNoteInput((v) => !v); if (showNameInput) setShowNameInput(false); }}
               activeOpacity={0.85}
             >
-              <Ionicons name="bookmark-outline" size={18} color={colors.silver} />
+              <Ionicons name={activeNote ? 'chatbubble' : 'chatbubble-outline'} size={18} color={activeNote ? colors.primary : colors.silver} />
             </TouchableOpacity>
           </View>
 
-          {/* Note Input */}
+          {/* Invoice Name Input */}
+          {showNameInput && (
+            <Animated.View
+              entering={FadeInDown.duration(200)}
+              style={[styles.nameNoteRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
+            >
+              <View style={[styles.nameNoteLabel, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="document-text-outline" size={14} color={colors.primary} />
+                <Text style={[styles.nameLabelText, { color: colors.primary }]}>اسم الفاتورة</Text>
+              </View>
+              <TextInput
+                style={[styles.noteInput, { color: colors.foreground, flex: 1 }]}
+                value={activeName}
+                onChangeText={setName}
+                placeholder="اسم الفاتورة (اختياري)..."
+                placeholderTextColor={colors.mutedForeground}
+                textAlign="right"
+              />
+              {activeName.length > 0 && (
+                <Pressable onPress={() => setName('')}>
+                  <Ionicons name="close-circle" size={16} color={colors.silver} />
+                </Pressable>
+              )}
+            </Animated.View>
+          )}
+
+          {/* Invoice Note Input */}
           {showNoteInput && (
             <Animated.View
               entering={FadeInDown.duration(200)}
-              style={[styles.noteRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
+              style={[styles.nameNoteRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
             >
-              <Ionicons name="person-outline" size={16} color={colors.silver} />
+              <View style={[styles.nameNoteLabel, { backgroundColor: colors.silver + '22' }]}>
+                <Ionicons name="chatbubble-outline" size={14} color={colors.silver} />
+                <Text style={[styles.nameLabelText, { color: colors.silver }]}>ملاحظة</Text>
+              </View>
               <TextInput
-                style={[styles.noteInput, { color: colors.foreground }]}
+                style={[styles.noteInput, { color: colors.foreground, flex: 1 }]}
                 value={activeNote}
                 onChangeText={setNote}
-                placeholder="اسم الزبون أو ملاحظة..."
+                placeholder="ملاحظة للفاتورة (اختياري)..."
                 placeholderTextColor={colors.mutedForeground}
                 textAlign="right"
               />
@@ -447,7 +433,9 @@ export default function CalculatorScreen() {
                       <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                       <View style={styles.searchResultInfo}>
                         <Text style={[styles.searchResultName, { color: colors.foreground }]} numberOfLines={1}>{p.name}</Text>
-                        <Text style={[styles.searchResultPrice, { color: colors.primary }]}>{formatPrice(p.sellingPriceSYP, 'SYP')}</Text>
+                        <Text style={[styles.searchResultPrice, { color: colors.primary }]}>
+                          {formatPriceCurrency(p.sellingPriceSYP, displayCurrency)}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -467,20 +455,21 @@ export default function CalculatorScreen() {
               <View style={[styles.emptyIcon, { backgroundColor: colors.secondary }]}>
                 <Ionicons name="receipt-outline" size={44} color={colors.primary} />
               </View>
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>فاتورة {activeNumber} فارغة</Text>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>فاتورة #{activeNumber} فارغة</Text>
               <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>امسح باركود أو ابحث عن منتج</Text>
             </Animated.View>
           ) : (
             <FlatList
               data={activeItems}
               keyExtractor={(item) => item.productId}
-              contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset + 220 }]}
+              contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset + 240 }]}
               showsVerticalScrollIndicator={false}
               renderItem={({ item, index }) => (
                 <Animated.View entering={FadeInUp.delay(index * 25).duration(200).springify()}>
                   <InvoiceRow
                     item={item}
                     colors={colors}
+                    displayCurrency={displayCurrency}
                     onIncrease={() => handleQtyChange(item.productId, 1)}
                     onDecrease={() => handleQtyChange(item.productId, -1)}
                     onRemove={() => { removeItem(item.productId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
@@ -526,14 +515,14 @@ export default function CalculatorScreen() {
                       style={[styles.discountTypePill, discountType === 'fixed' && { backgroundColor: colors.primary }]}
                       onPress={() => handleDiscountTypeChange('fixed')}
                     >
-                      <Text style={[styles.discountTypePillText, { color: discountType === 'fixed' ? colors.primaryForeground : colors.foreground }]}>ل.س</Text>
+                      <Text style={[styles.discountTypePillText, { color: discountType === 'fixed' ? colors.primaryForeground : colors.foreground }]}>{currencyLabel}</Text>
                     </TouchableOpacity>
                   </View>
                   <TextInput
                     style={[styles.discountInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                     value={discountInput}
                     onChangeText={handleDiscountInputChange}
-                    placeholder={discountType === 'pct' ? '0%' : '0 ل.س'}
+                    placeholder={discountType === 'pct' ? '0%' : `0 ${currencyLabel}`}
                     placeholderTextColor={colors.mutedForeground}
                     keyboardType="numeric"
                     textAlign="right"
@@ -546,16 +535,20 @@ export default function CalculatorScreen() {
                 <View style={styles.totalAmounts}>
                   {hasDiscount && (
                     <Text style={[styles.subtotalLine, { color: colors.mutedForeground }]}>
-                      الجزئي: <Text style={{ textDecorationLine: 'line-through' }}>{formatPrice(totalSYP, 'SYP')}</Text>
+                      الجزئي: <Text style={{ textDecorationLine: 'line-through' }}>{formatPriceCurrency(totalSYP, displayCurrency)}</Text>
                     </Text>
                   )}
                   {hasDiscount && (
                     <Text style={[styles.discountLine, { color: colors.destructive }]}>
-                      الخصم: -{formatPrice(discountAmountSYP, 'SYP')}
+                      الخصم: -{formatPriceCurrency(discountAmountSYP, displayCurrency)}
                     </Text>
                   )}
-                  <Text style={[styles.totalSYP, { color: colors.primary }]}>{formatPrice(finalTotalSYP, 'SYP')}</Text>
-                  <Text style={[styles.totalUSD, { color: colors.silver }]}>{formatPrice(finalTotalUSD, 'USD')}</Text>
+                  <Text style={[styles.totalSYP, { color: colors.primary }]}>
+                    {formatPriceCurrency(finalTotalSYP, displayCurrency)}
+                  </Text>
+                  {displayCurrency !== 'USD' && (
+                    <Text style={[styles.totalUSD, { color: colors.silver }]}>{formatPrice(finalTotalUSD, 'USD')}</Text>
+                  )}
                 </View>
                 <View style={styles.totalRight}>
                   <View style={[styles.totalCountBadge, { backgroundColor: colors.primary + '15' }]}>
@@ -587,7 +580,7 @@ export default function CalculatorScreen() {
                 style={[styles.histSearchInput, { color: colors.foreground }]}
                 value={historySearch}
                 onChangeText={setHistorySearch}
-                placeholder="ابحث برقم الفاتورة أو اسم الزبون..."
+                placeholder="ابحث برقم أو اسم الفاتورة أو الملاحظة..."
                 placeholderTextColor={colors.mutedForeground}
                 textAlign="right"
               />
@@ -620,6 +613,8 @@ export default function CalculatorScreen() {
               renderItem={({ item: inv, index }) => {
                 const isExpanded = expandedInvoices.has(inv.id);
                 const displayTotal = inv.finalTotalSYP ?? inv.totalSYP;
+                const invDisplayName = inv.name || 'فاتورة بدون اسم';
+                const invDisplayNote = inv.note || 'لا يوجد ملاحظة';
                 return (
                   <Animated.View entering={FadeInDown.delay(index * 30).duration(200).springify()}>
                     <View style={[styles.savedInvoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -633,13 +628,11 @@ export default function CalculatorScreen() {
                         </View>
 
                         <View style={styles.savedInvoiceInfo}>
-                          {inv.note ? (
-                            <Text style={[styles.savedInvoiceNote, { color: colors.foreground }]} numberOfLines={1}>
-                              {inv.note}
-                            </Text>
-                          ) : null}
+                          <Text style={[styles.savedInvoiceName, { color: colors.foreground, fontStyle: inv.name ? 'normal' : 'italic' }]} numberOfLines={1}>
+                            {invDisplayName}
+                          </Text>
                           <Text style={[styles.savedInvoiceTotal, { color: colors.primary }]}>
-                            {formatPrice(displayTotal, 'SYP')}
+                            {formatPriceCurrency(displayTotal, displayCurrency)}
                           </Text>
                           <Text style={[styles.savedInvoiceDate, { color: colors.mutedForeground }]}>
                             {formatArabicDateShort(inv.createdAt)} — {inv.items.length} منتج
@@ -656,10 +649,18 @@ export default function CalculatorScreen() {
                       {/* Expanded */}
                       {isExpanded && (
                         <Animated.View entering={FadeInDown.duration(200)} style={[styles.savedInvoiceItems, { borderTopColor: colors.border }]}>
+                          {/* Note display */}
+                          <View style={[styles.invNoteRow, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+                            <Ionicons name="chatbubble-outline" size={13} color={colors.silver} />
+                            <Text style={[styles.invNoteText, { color: inv.note ? colors.foreground : colors.mutedForeground, fontStyle: inv.note ? 'normal' : 'italic' }]}>
+                              {invDisplayNote}
+                            </Text>
+                          </View>
+
                           {inv.items.map((item) => (
                             <View key={item.productId} style={[styles.savedItemRow, { borderBottomColor: colors.border }]}>
                               <Text style={[styles.savedItemSubtotal, { color: colors.primary }]}>
-                                {formatPrice(item.sellingPriceSYP * item.qty, 'SYP')}
+                                {formatPriceCurrency(item.sellingPriceSYP * item.qty, displayCurrency)}
                               </Text>
                               <Text style={[styles.savedItemQty, { color: colors.mutedForeground }]}>×{item.qty}</Text>
                               <Text style={[styles.savedItemName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
@@ -668,16 +669,18 @@ export default function CalculatorScreen() {
                           {((inv.discountPct && inv.discountPct > 0) || (inv.discountFixed && inv.discountFixed > 0)) && (
                             <View style={[styles.discountSummaryRow, { borderTopColor: colors.border }]}>
                               <Text style={[styles.discountSummaryText, { color: colors.destructive }]}>
-                                خصم: -{formatPrice(inv.totalSYP - (inv.finalTotalSYP ?? inv.totalSYP), 'SYP')}
+                                خصم: -{formatPriceCurrency(inv.totalSYP - (inv.finalTotalSYP ?? inv.totalSYP), displayCurrency)}
                               </Text>
                             </View>
                           )}
                           <View style={[styles.savedInvoiceTotalsRow, { borderTopColor: colors.border }]}>
-                            <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
-                              {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
-                            </Text>
+                            {displayCurrency !== 'USD' && (
+                              <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
+                                {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
+                              </Text>
+                            )}
                             <Text style={[styles.savedInvTotalSYP, { color: colors.primary }]}>
-                              الإجمالي: {formatPrice(displayTotal, 'SYP')}
+                              الإجمالي: {formatPriceCurrency(displayTotal, displayCurrency)}
                             </Text>
                           </View>
 
@@ -753,7 +756,7 @@ export default function CalculatorScreen() {
             <>
               <View style={styles.statsCardsRow}>
                 <StatsCard label="عدد الفواتير" value={String(stats.count)} icon="receipt-outline" color={colors.primary} colors={colors} />
-                <StatsCard label="المتوسط" value={formatPrice(Math.round(stats.avgSYP), 'SYP')} icon="analytics-outline" color={colors.silver} colors={colors} />
+                <StatsCard label="المتوسط" value={formatPriceCurrency(Math.round(stats.avgSYP), displayCurrency)} icon="analytics-outline" color={colors.silver} colors={colors} />
               </View>
 
               <View style={[styles.statsBigCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -761,16 +764,20 @@ export default function CalculatorScreen() {
                   <Ionicons name="cash-outline" size={22} color={colors.primary} />
                   <Text style={[styles.statsBigLabel, { color: colors.foreground }]}>إجمالي المبيعات</Text>
                 </View>
-                <Text style={[styles.statsBigValue, { color: colors.primary }]}>{formatPrice(Math.round(stats.totalSYP), 'SYP')}</Text>
-                <Text style={[styles.statsBigSub, { color: colors.silver }]}>{formatPrice(stats.totalUSD, 'USD')}</Text>
+                <Text style={[styles.statsBigValue, { color: colors.primary }]}>{formatPriceCurrency(Math.round(stats.totalSYP), displayCurrency)}</Text>
+                {displayCurrency !== 'USD' && (
+                  <Text style={[styles.statsBigSub, { color: colors.silver }]}>{formatPrice(stats.totalUSD, 'USD')}</Text>
+                )}
               </View>
 
               <Text style={[styles.statsHistoryTitle, { color: colors.foreground }]}>الفواتير</Text>
               {stats.invoices.map((inv) => (
                 <View key={inv.id} style={[styles.statsInvRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <Text style={[styles.statsInvTotal, { color: colors.primary }]}>{formatPrice(inv.finalTotalSYP ?? inv.totalSYP, 'SYP')}</Text>
+                  <Text style={[styles.statsInvTotal, { color: colors.primary }]}>{formatPriceCurrency(inv.finalTotalSYP ?? inv.totalSYP, displayCurrency)}</Text>
                   <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    {inv.note ? <Text style={[styles.statsInvNote, { color: colors.foreground }]} numberOfLines={1}>{inv.note}</Text> : null}
+                    <Text style={[styles.statsInvNote, { color: colors.foreground, fontStyle: inv.name ? 'normal' : 'italic' }]} numberOfLines={1}>
+                      {inv.name || 'فاتورة بدون اسم'}
+                    </Text>
                     <Text style={[styles.statsInvDate, { color: colors.mutedForeground }]}>{formatArabicDateShort(inv.createdAt)}</Text>
                   </View>
                   <View style={[styles.statsInvBadge, { backgroundColor: colors.primary + '18' }]}>
@@ -793,7 +800,7 @@ export default function CalculatorScreen() {
               </View>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>حفظ الفاتورة؟</Text>
               <Text style={[styles.modalMsg, { color: colors.mutedForeground }]}>
-                لديك {activeItems.length} منتج في فاتورة {activeNumber}
+                لديك {activeItems.length} منتج في فاتورة #{activeNumber}
               </Text>
               <TouchableOpacity style={[styles.modalBtnFull, { backgroundColor: colors.primary, marginBottom: 8 }]} onPress={handleExitSave}>
                 <Ionicons name="save-outline" size={18} color={colors.primaryForeground} />
@@ -820,7 +827,7 @@ export default function CalculatorScreen() {
                 <Ionicons name="trash-outline" size={28} color={colors.destructive} />
               </View>
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>مسح الفاتورة</Text>
-              <Text style={[styles.modalMsg, { color: colors.mutedForeground }]}>سيتم حذف جميع المنتجات من فاتورة {activeNumber}</Text>
+              <Text style={[styles.modalMsg, { color: colors.mutedForeground }]}>سيتم حذف جميع المنتجات من فاتورة #{activeNumber}</Text>
               <View style={styles.modalBtnRow}>
                 <TouchableOpacity style={[styles.modalBtn, { backgroundColor: colors.secondary }]} onPress={() => setShowClearConfirm(false)}>
                   <Text style={[styles.modalBtnText, { color: colors.foreground }]}>إلغاء</Text>
@@ -857,77 +864,6 @@ export default function CalculatorScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── TEMPLATES MODAL ─────────────────────────────── */}
-      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowTemplates(false)}>
-          <Animated.View
-            entering={FadeInDown.duration(280).springify()}
-            style={[styles.templatesSheet, { backgroundColor: colors.card, borderColor: colors.border, paddingBottom: bottomInset + 20 }]}
-          >
-            <Pressable onPress={() => {}}>
-              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-              <Text style={[styles.templatesTitle, { color: colors.foreground }]}>قوالب الفواتير</Text>
-
-              {hasItems && (
-                <View style={[styles.saveTemplateRow, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
-                  <TouchableOpacity
-                    style={[styles.saveTemplateBtn, { backgroundColor: colors.primary }]}
-                    onPress={handleSaveAsTemplate}
-                    disabled={!templateNameInput.trim() || savingTemplate}
-                  >
-                    <Ionicons name="bookmark" size={15} color={colors.primaryForeground} />
-                    <Text style={[styles.saveTemplateBtnText, { color: colors.primaryForeground }]}>حفظ</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[styles.templateNameInput, { color: colors.foreground, borderColor: colors.border }]}
-                    value={templateNameInput}
-                    onChangeText={setTemplateNameInput}
-                    placeholder="اسم القالب..."
-                    placeholderTextColor={colors.mutedForeground}
-                    textAlign="right"
-                  />
-                </View>
-              )}
-
-              <ScrollView style={styles.templatesList} showsVerticalScrollIndicator={false}>
-                {templates.length === 0 ? (
-                  <View style={styles.templatesEmpty}>
-                    <Ionicons name="bookmark-outline" size={36} color={colors.silver} />
-                    <Text style={[styles.templatesEmptyText, { color: colors.mutedForeground }]}>
-                      لا توجد قوالب محفوظة
-                    </Text>
-                  </View>
-                ) : (
-                  templates.map((t) => (
-                    <View key={t.id} style={[styles.templateCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <TouchableOpacity
-                        style={[styles.templateDeleteBtn, { backgroundColor: colors.destructive + '15' }]}
-                        onPress={() => handleDeleteTemplate(t.id)}
-                      >
-                        <Ionicons name="trash-outline" size={14} color={colors.destructive} />
-                      </TouchableOpacity>
-                      <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
-                        <Text style={[styles.templateName, { color: colors.foreground }]}>{t.name}</Text>
-                        <Text style={[styles.templateMeta, { color: colors.mutedForeground }]}>
-                          {t.items.length} منتج {t.note ? `· ${t.note}` : ''}
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[styles.templateLoadBtn, { backgroundColor: colors.primary }]}
-                        onPress={() => handleLoadTemplate(t)}
-                      >
-                        <Ionicons name="play" size={14} color={colors.primaryForeground} />
-                        <Text style={[styles.templateLoadText, { color: colors.primaryForeground }]}>تحميل</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Modal>
-
       {/* ── CONFETTI ─────────────────────────────────────── */}
       <ConfettiEffect visible={showConfetti} onDone={() => setShowConfetti(false)} />
     </View>
@@ -947,10 +883,14 @@ function StatsCard({ label, value, icon, color, colors }: { label: string; value
 }
 
 function InvoiceRow({
-  item, colors, onIncrease, onDecrease, onRemove,
+  item, colors, displayCurrency, onIncrease, onDecrease, onRemove,
 }: {
-  item: InvoiceItem; colors: any;
-  onIncrease: () => void; onDecrease: () => void; onRemove: () => void;
+  item: InvoiceItem;
+  colors: any;
+  displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD';
+  onIncrease: () => void;
+  onDecrease: () => void;
+  onRemove: () => void;
 }) {
   const subtotal = item.sellingPriceSYP * item.qty;
   return (
@@ -960,17 +900,21 @@ function InvoiceRow({
       </TouchableOpacity>
       <View style={styles.invoiceRowContent}>
         <Text style={[styles.invoiceRowName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
-        <Text style={[styles.invoiceRowPrice, { color: colors.silver }]}>{formatPrice(item.sellingPriceSYP, 'SYP')} / قطعة</Text>
+        <Text style={[styles.invoiceRowPrice, { color: colors.mutedForeground }]}>
+          {formatPriceCurrency(item.sellingPriceSYP, displayCurrency)} / قطعة
+        </Text>
       </View>
       <View style={styles.qtyControls}>
-        <Text style={[styles.invoiceRowSubtotal, { color: colors.primary }]}>{formatPrice(subtotal, 'SYP')}</Text>
+        <Text style={[styles.invoiceRowSubtotal, { color: colors.primary }]}>
+          {formatPriceCurrency(subtotal, displayCurrency)}
+        </Text>
         <View style={styles.qtyRow}>
-          <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.secondary }]} onPress={onDecrease}>
-            <Ionicons name="remove" size={16} color={colors.foreground} />
-          </TouchableOpacity>
-          <Text style={[styles.qtyText, { color: colors.foreground }]}>{item.qty}</Text>
           <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.primary }]} onPress={onIncrease}>
             <Ionicons name="add" size={16} color={colors.primaryForeground} />
+          </TouchableOpacity>
+          <Text style={[styles.qtyText, { color: colors.foreground }]}>{item.qty}</Text>
+          <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: item.qty <= 1 ? colors.destructive + '15' : colors.secondary }]} onPress={onDecrease}>
+            <Ionicons name={item.qty <= 1 ? 'trash-outline' : 'remove'} size={16} color={item.qty <= 1 ? colors.destructive : colors.foreground} />
           </TouchableOpacity>
         </View>
       </View>
@@ -981,27 +925,57 @@ function InvoiceRow({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    gap: 10,
   },
   headerBtn: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerCenter: { flex: 1, alignItems: 'center' },
   headerTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold' },
-  headerSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
+  headerSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular' },
   tabBar: {
-    flexDirection: 'row', borderBottomWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1,
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    height: 44,
   },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 5 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   tabText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
-  tabBadge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  tabBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Tajawal_700Bold' },
-  actionRow: { flexDirection: 'row', padding: 10, gap: 8, borderBottomWidth: 1 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
-  actionBtnSquare: { width: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  tabBadge: { minWidth: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  tabBadgeText: { fontSize: 9, color: '#fff', fontFamily: 'Tajawal_700Bold' },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 6,
+    borderBottomWidth: 1,
+    height: 60,
+  },
+  actionBtn: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, gap: 5 },
+  actionBtnSquare: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   actionBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
-  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1 },
-  noteInput: { flex: 1, fontSize: 14, fontFamily: 'Tajawal_400Regular', height: 36 },
+  nameNoteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  nameNoteLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  nameLabelText: { fontSize: 11, fontFamily: 'Tajawal_700Bold' },
+  noteInput: { fontSize: 14, fontFamily: 'Tajawal_400Regular', height: 36 },
   searchContainer: { borderBottomWidth: 1, paddingHorizontal: 12, paddingBottom: 4 },
   searchRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, gap: 8, height: 40, marginVertical: 8 },
   searchInput: { flex: 1, fontSize: 14, fontFamily: 'Tajawal_400Regular', height: 40 },
@@ -1059,32 +1033,21 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 15, fontFamily: 'Tajawal_700Bold', minWidth: 24, textAlign: 'center' },
   histSearchWrap: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
   histSearchRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, gap: 8, height: 38 },
-  modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 8 },
-  templatesSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderBottomWidth: 0, paddingHorizontal: 16, paddingTop: 4, maxHeight: '75%' },
-  templatesTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 14 },
-  saveTemplateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, borderWidth: 1, padding: 8, marginBottom: 12 },
-  saveTemplateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  saveTemplateBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
-  templateNameInput: { flex: 1, height: 38, fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'right', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10 },
-  templatesList: { maxHeight: 320 },
-  templatesEmpty: { alignItems: 'center', gap: 10, paddingVertical: 40 },
-  templatesEmptyText: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'center' },
-  templateCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 8 },
-  templateDeleteBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  templateName: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  templateMeta: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  templateLoadBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
-  templateLoadText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   histSearchInput: { flex: 1, fontSize: 13, fontFamily: 'Tajawal_400Regular', height: 38 },
   savedInvoiceCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   savedInvoiceHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   invNumberBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   invNumberText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   savedInvoiceInfo: { flex: 1, alignItems: 'flex-end', gap: 2 },
-  savedInvoiceNote: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  savedInvoiceName: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   savedInvoiceTotal: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
   savedInvoiceDate: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
   savedInvoiceItems: { borderTopWidth: 1 },
+  invNoteRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1,
+  },
+  invNoteText: { flex: 1, fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   savedItemRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderBottomWidth: 1 },
   savedItemSubtotal: { fontSize: 13, fontFamily: 'Tajawal_700Bold', minWidth: 80, textAlign: 'right' },
   savedItemQty: { fontSize: 12, fontFamily: 'Tajawal_400Regular', minWidth: 24, textAlign: 'center' },
@@ -1104,7 +1067,7 @@ const styles = StyleSheet.create({
   statsCardsRow: { flexDirection: 'row', gap: 10 },
   statsCard: { flex: 1, borderRadius: 14, borderWidth: 1, padding: 14, alignItems: 'center', gap: 6 },
   statsCardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  statsCardValue: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
+  statsCardValue: { fontSize: 16, fontFamily: 'Tajawal_700Bold', textAlign: 'center' },
   statsCardLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'center' },
   statsBigCard: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 4 },
   statsBigRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'flex-end' },

@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   lastBackupDate: undefined,
   autoLockMinutes: 0,
   lowStockThreshold: 5,
+  displayCurrency: 'SYP_NEW',
 };
 
 interface SettingsContextValue {
@@ -105,6 +106,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         const parsed: AppSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
         if (!parsed.securityKey) parsed.securityKey = generateSecurityKey();
+        if (!parsed.displayCurrency) parsed.displayCurrency = 'SYP_NEW';
         setSettings(parsed);
         settingsRef.current = parsed;
         if (parsed.pinEnabled && parsed.pinCode && Platform.OS !== 'web') {

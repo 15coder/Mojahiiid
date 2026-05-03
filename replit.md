@@ -20,22 +20,42 @@ pnpm workspace monorepo using TypeScript. Contains the "مجاهد للتجار�
 - **Preview path**: `/`
 - **Slug**: `mujahid`
 - **Bundle ID**: `com.needaa.mujahid`
+- **Version**: 1.3.0
 - **Features**:
   - Product inventory management (CRUD)
   - Dual-currency pricing (SYP / USD) with live conversion
+  - **Currency display selector**: ليرة سورية جديدة / ليرة سورية قديمة (×100) / دولار
   - Barcode scanner (expo-camera) — wide rectangular frame, double beep, auto-navigate
   - Scanner auto-fills barcode in add product page (via route params)
   - Product images (expo-image-picker)
   - Biometric lock (expo-local-authentication)
   - Fuzzy search (fuse.js)
   - Price trend tracking
-  - JSON backup/restore
+  - **Invoice store** with activeName + activeNote separated (invoiceStore.ts v3)
+  - **Invoice name** separate from note — stored as `name?` on SavedInvoice
+  - **Invoice history** shows name ("فاتورة بدون اسم" if empty) and note ("لا يوجد ملاحظة" if empty)
+  - **JSON backup/restore** — saves to `Nidaa/Backups/` with timestamped Arabic filenames
   - RTL Arabic UI with Tajawal font
   - Dark/light mode support
-  - AsyncStorage persistence
+  - AsyncStorage persistence (key: `@mujahid:invoices_v3`)
   - Custom in-app Toast notifications (ToastContext)
   - No bottom tab bar — settings accessible via icon in main header
   - Settings page has back button for navigation
+  - **Template system removed** (templateStore.ts deleted)
+
+## Invoice Store Keys
+- `@mujahid:invoices_v3` — current key (backward compatible with v2)
+- `@mujahid:settings` — app settings
+
+## Currency System
+- **SYP_NEW** (ليرة جديدة): stored value as-is, shown as "ل.س"
+- **SYP_OLD** (ليرة قديمة): stored value × 100, shown as "ل.س.ق"
+- **USD**: converted via exchange rate, shown as "$"
+
+## Backup Path
+- Saved to: `${FileSystem.documentDirectory}Nidaa/Backups/`
+- Filename format: `نسخة_YYYY-MM-DD_HHMMSS.json`
+- Auto-shared via system share sheet after creation
 
 ## EAS Build (expo.dev)
 

@@ -30,7 +30,7 @@ import { useToast } from '@/context/ToastContext';
 import { useColors } from '@/hooks/useColors';
 import { THEMES, getThemeById } from '@/constants/themes';
 import { Category, DEFAULT_CATEGORIES } from '@/types/category';
-import { formatArabicDateShort } from '@/utils/dateFormatter';
+import { formatArabicDateShort, getBackupFileName } from '@/utils/dateFormatter';
 
 const CAT_ICON_OPTIONS = [
   'nutrition-outline', 'leaf-outline', 'cafe-outline', 'flame-outline',
@@ -51,6 +51,18 @@ const CAT_COLOR_OPTIONS = [
   '#22C55E', '#F59E0B', '#3B82F6', '#EF4444', '#06B6D4', '#EC4899',
   '#8B5CF6', '#F97316', '#14B8A6', '#6366F1', '#84CC16', '#E11D48',
 ];
+
+const NIDAA_DIR = `${FileSystem.documentDirectory}Nidaa/`;
+const BACKUP_DIR = `${FileSystem.documentDirectory}Nidaa/Backups/`;
+
+async function ensureBackupDir() {
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(BACKUP_DIR);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(BACKUP_DIR, { intermediates: true });
+    }
+  } catch {}
+}
 
 type ActiveModal =
   | 'none'
@@ -88,10 +100,8 @@ export default function SettingsScreen() {
   const [catIcon, setCatIcon] = useState(CAT_ICON_OPTIONS[0]);
   const [catColor, setCatColor] = useState(CAT_COLOR_OPTIONS[0]);
 
-  // Security key visibility
   const [showSecKey, setShowSecKey] = useState(false);
 
-  // PIN modal state
   const [currentPinInput, setCurrentPinInput] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -141,14 +151,24 @@ export default function SettingsScreen() {
         version: 2,
         categories,
         exportDate: now,
+        appName: settings.appName,
       };
       const json = JSON.stringify(fullBackup, null, 2);
-      const path = `${FileSystem.cacheDirectory}mujahid-backup-${Date.now()}.json`;
-      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 });
+
+      await ensureBackupDir();
+      const fileName = getBackupFileName();
+      const localPath = `${BACKUP_DIR}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(localPath, json, { encoding: FileSystem.EncodingType.UTF8 });
+
       const canShare = await Sharing.isAvailableAsync();
-      if (canShare) await Sharing.shareAsync(path, { mimeType: 'application/json' });
-      else showToast({ message: 'تم حفظ الملف', type: 'success' });
+      if (canShare) {
+        await Sharing.shareAsync(localPath, { mimeType: 'application/json', dialogTitle: 'حفظ النسخة الاحتياطية' });
+      } else {
+        showToast({ message: `تم حفظ النسخة في: Nidaa/Backups/${fileName}`, type: 'success' });
+      }
       await updateSettings({ lastBackupDate: now });
+      showToast({ message: 'تم إنشاء النسخة الاحتياطية بنجاح', type: 'success' });
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل التصدير', type: 'error' });
     } finally {
@@ -361,6 +381,8 @@ export default function SettingsScreen() {
     ? { uri: settings.appIconUri }
     : require('@/assets/images/icon.png');
 
+  const displayCurrency = settings.displayCurrency ?? 'SYP_NEW';
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -437,6 +459,49 @@ export default function SettingsScreen() {
           })}
         </View>
 
+        {/* ─── Currency Display ─── */}
+        <SectionHeader title="عرض العملة" colors={colors} icon="cash-outline" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
+          {([
+            { key: 'SYP_NEW' as const, label: 'ليرة سورية جديدة', sub: 'السعر الحالي كما هو — ل.س', icon: 'wallet-outline' },
+            { key: 'SYP_OLD' as const, label: 'ليرة سورية قديمة', sub: 'السعر × ١٠٠ — ل.س.ق', icon: 'time-outline' },
+            { key: 'USD' as const, label: 'دولار أمريكي', sub: 'عرض الأسعار بالدولار — $', icon: 'logo-usd' },
+          ]).map(({ key, label, sub, icon }, idx) => {
+            const isActive = displayCurrency === key;
+            return (
+              <React.Fragment key={key}>
+                {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+                <TouchableOpacity
+                  style={[styles.modeRow, { paddingVertical: 14 }]}
+                  onPress={() => { updateSettings({ displayCurrency: key }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                >
+                  {isActive
+                    ? <Ionicons name="radio-button-on" size={22} color={colors.primary} />
+                    : <Ionicons name="radio-button-off" size={22} color={colors.silver} />}
+                  <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+                    <Text style={[styles.modeLabel, { color: isActive ? colors.primary : colors.foreground }]}>{label}</Text>
+                    <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sub}</Text>
+                  </View>
+                  <View style={[styles.secIconWrap, { backgroundColor: isActive ? colors.primary + '15' : colors.secondary }]}>
+                    <Ionicons name={icon as any} size={20} color={isActive ? colors.primary : colors.silver} />
+                  </View>
+                </TouchableOpacity>
+              </React.Fragment>
+            );
+          })}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={[styles.currencyNote, { backgroundColor: colors.primary + '10' }]}>
+            <Ionicons name="information-circle-outline" size={14} color={colors.primary} />
+            <Text style={[styles.currencyNoteText, { color: colors.primary }]}>
+              {displayCurrency === 'SYP_OLD'
+                ? 'الليرة القديمة = الليرة الجديدة × ١٠٠ (إضافة صفرين)'
+                : displayCurrency === 'SYP_NEW'
+                  ? 'الليرة الجديدة = الليرة القديمة ÷ ١٠٠ (حذف آخر رقمين)'
+                  : 'الأسعار تُحوَّل تلقائياً بسعر الصرف الحالي'}
+            </Text>
+          </View>
+        </View>
+
         {/* ─── Display Preferences ─── */}
         <SectionHeader title="تفضيلات العرض" colors={colors} icon="eye-outline" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
@@ -460,9 +525,9 @@ export default function SettingsScreen() {
         </View>
 
         {/* Exchange Rate */}
-        <SectionHeader title="معدل الصرف" colors={colors} icon="cash-outline" />
+        <SectionHeader title="معدل الصرف" colors={colors} icon="swap-horizontal-outline" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>سعر الدولار بالليرة السورية — سيتم تحديث أسعار جميع المنتجات</Text>
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>سعر الدولار بالليرة السورية الجديدة — سيتم تحديث أسعار جميع المنتجات</Text>
           <View style={styles.rateRow}>
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleRateSubmit} activeOpacity={0.8}>
               <Ionicons name="checkmark" size={20} color={colors.primaryForeground} />
@@ -480,7 +545,7 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.rateBadge, { backgroundColor: colors.primary + '15', marginTop: 6 }]}>
             <Text style={[styles.rateNote, { color: colors.primary }]}>
-              1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س
+              1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س جديدة
             </Text>
             <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
           </View>
@@ -693,15 +758,40 @@ export default function SettingsScreen() {
           ) : (
             <Text style={[styles.label, { color: colors.mutedForeground }]}>لم يتم إنشاء نسخة احتياطية بعد</Text>
           )}
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>تصدير أو استيراد {products.length} منتج و{categories.length} قسم</Text>
+
+          {/* Backup path info */}
+          <View style={[styles.backupPathRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Ionicons name="folder-outline" size={14} color={colors.silver} />
+            <Text style={[styles.backupPathText, { color: colors.mutedForeground }]}>
+              المسار: Nidaa/Backups/ — مرتبة بالتاريخ والوقت
+            </Text>
+          </View>
+
+          <Text style={[styles.label, { color: colors.mutedForeground }]}>
+            تصدير أو استيراد {products.length} منتج و{categories.length} قسم
+          </Text>
           <View style={styles.backupBtns}>
-            <TouchableOpacity style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]} onPress={handleExport} disabled={isExporting} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]}
+              onPress={handleExport}
+              disabled={isExporting}
+              activeOpacity={0.8}
+            >
               <Ionicons name="download-outline" size={16} color={colors.primaryForeground} />
-              <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]}>{isExporting ? 'جاري...' : 'تصدير'}</Text>
+              <Text style={[styles.backupBtnText, { color: colors.primaryForeground }]}>
+                {isExporting ? 'جاري...' : 'تصدير'}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.backupBtn, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1, flex: 1 }]} onPress={handleImport} disabled={isImporting} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={[styles.backupBtn, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1, flex: 1 }]}
+              onPress={handleImport}
+              disabled={isImporting}
+              activeOpacity={0.8}
+            >
               <Ionicons name="cloud-upload-outline" size={16} color={colors.primary} />
-              <Text style={[styles.backupBtnText, { color: colors.primary }]}>{isImporting ? 'جاري...' : 'استيراد'}</Text>
+              <Text style={[styles.backupBtnText, { color: colors.primary }]}>
+                {isImporting ? 'جاري...' : 'استيراد'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -710,7 +800,7 @@ export default function SettingsScreen() {
         <SectionHeader title="معلومات التطبيق" colors={colors} icon="information-circle-outline" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <InfoRow label="اسم التطبيق" value={settings.appName || 'مجاهد للتجارة'} colors={colors} />
-          <InfoRow label="الإصدار" value="1.2.0" colors={colors} />
+          <InfoRow label="الإصدار" value="1.3.0" colors={colors} />
           <InfoRow label="عدد المنتجات" value={String(products.length)} colors={colors} />
           <InfoRow label="عدد الأقسام" value={String(categories.length)} colors={colors} last />
         </View>
@@ -892,7 +982,7 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
-      {/* ─── Delete Category Step 2 (Choose target) ─── */}
+      {/* ─── Delete Category Step 2 ─── */}
       <Modal
         visible={activeModal === 'deleteCatStep2'}
         transparent
@@ -970,13 +1060,12 @@ export default function SettingsScreen() {
         onClose={() => setActiveModal('none')}
         onConfirm={confirmImportData}
         colors={colors}
-        title="تأكيد الاستيراد"
-        message="سيتم استبدال جميع المنتجات الحالية بالبيانات المستوردة. هل تريد المتابعة؟"
+        title="استيراد البيانات"
+        message="سيتم دمج المنتجات والأقسام من الملف المحدد مع البيانات الحالية. هل تريد المتابعة؟"
         confirmLabel="استيراد"
-        confirmDestructive
       />
 
-      {/* ─── Theme Picker Modal ─── */}
+      {/* ─── Theme Modal ─── */}
       <BottomSheetModal
         visible={activeModal === 'theme'}
         onClose={() => setActiveModal('none')}
@@ -984,17 +1073,13 @@ export default function SettingsScreen() {
         title="اختر الثيم"
       >
         {THEMES.map((t, idx) => {
-          const isActive = settings.themeId === t.id || (!settings.themeId && t.id === 'ocean');
+          const isActive = settings.themeId === t.id;
           return (
             <React.Fragment key={t.id}>
               {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
               <TouchableOpacity
-                style={[styles.themeRow, isActive && { backgroundColor: colors.secondary }]}
-                onPress={() => {
-                  updateSettings({ themeId: t.id });
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setActiveModal('none');
-                }}
+                style={[styles.themeRow, { backgroundColor: isActive ? colors.primary + '10' : 'transparent' }]}
+                onPress={() => { updateSettings({ themeId: t.id }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveModal('none'); }}
               >
                 {isActive
                   ? <Ionicons name="checkmark-circle" size={22} color={colors.primary} />
@@ -1352,6 +1437,16 @@ const styles = StyleSheet.create({
   divider: { height: 1 },
   modeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   modeLabel: { fontSize: 14, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  currencyNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    margin: 4,
+    marginBottom: 8,
+  },
+  currencyNoteText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 18 },
   label: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right', lineHeight: 18 },
   rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rateInput: { flex: 1, height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 18, fontFamily: 'Tajawal_500Medium' },
@@ -1390,6 +1485,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
   lastBackupText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
+  backupPathRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1,
+  },
+  backupPathText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   backupBtns: { flexDirection: 'row', gap: 10 },
   backupBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
   backupBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },

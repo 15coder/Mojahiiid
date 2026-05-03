@@ -14,6 +14,7 @@ export type InvoiceItem = {
 export type SavedInvoice = {
   id: string;
   number: number;
+  name?: string;
   items: InvoiceItem[];
   createdAt: string;
   totalSYP: number;
@@ -37,6 +38,7 @@ export type StatsResult = {
 
 type StoreState = {
   activeItems: InvoiceItem[];
+  activeName: string;
   activeNote: string;
   activeDiscountPct: number;
   activeDiscountFixed: number;
@@ -48,6 +50,7 @@ type StoreState = {
 
 let _state: StoreState = {
   activeItems: [],
+  activeName: '',
   activeNote: '',
   activeDiscountPct: 0,
   activeDiscountFixed: 0,
@@ -163,6 +166,11 @@ export const invoiceStore = {
     notify();
   },
 
+  setName(name: string) {
+    _state = { ..._state, activeName: name };
+    notify();
+  },
+
   setNote(note: string) {
     _state = { ..._state, activeNote: note };
     notify();
@@ -181,6 +189,7 @@ export const invoiceStore = {
     _state = {
       ..._state,
       activeItems: [],
+      activeName: '',
       activeNote: '',
       activeDiscountPct: 0,
       activeDiscountFixed: 0,
@@ -198,11 +207,12 @@ export const invoiceStore = {
     const invoice: SavedInvoice = {
       id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
       number: _state.activeNumber,
+      name: _state.activeName.trim() || undefined,
       items: [..._state.activeItems],
       createdAt: new Date().toISOString(),
       totalSYP: rawSYP,
       totalUSD: rawUSD,
-      note: _state.activeNote || undefined,
+      note: _state.activeNote.trim() || undefined,
       discountPct: _state.activeDiscountPct > 0 ? _state.activeDiscountPct : undefined,
       discountFixed: _state.activeDiscountFixed > 0 ? _state.activeDiscountFixed : undefined,
       finalTotalSYP: finalSYP,
@@ -213,6 +223,7 @@ export const invoiceStore = {
       ..._state,
       savedInvoices: [invoice, ..._state.savedInvoices],
       activeItems: [],
+      activeName: '',
       activeNote: '',
       activeDiscountPct: 0,
       activeDiscountFixed: 0,
@@ -230,6 +241,7 @@ export const invoiceStore = {
     _state = {
       ..._state,
       activeItems: [...inv.items],
+      activeName: inv.name || '',
       activeNote: inv.note || '',
       activeDiscountPct: inv.discountPct || 0,
       activeDiscountFixed: inv.discountFixed || 0,
@@ -249,6 +261,7 @@ export const invoiceStore = {
   clearAll() {
     _state = {
       activeItems: [],
+      activeName: '',
       activeNote: '',
       activeDiscountPct: 0,
       activeDiscountFixed: 0,
@@ -310,7 +323,7 @@ export const invoiceStore = {
   },
 
   clear() {
-    _state = { ..._state, activeItems: [], activeNote: '', activeDiscountPct: 0, activeDiscountFixed: 0 };
+    _state = { ..._state, activeItems: [], activeName: '', activeNote: '', activeDiscountPct: 0, activeDiscountFixed: 0 };
     notify();
   },
 
@@ -346,6 +359,7 @@ export function useInvoiceStore() {
   return {
     state,
     activeItems: state.activeItems,
+    activeName: state.activeName,
     activeNote: state.activeNote,
     activeDiscountPct: state.activeDiscountPct,
     activeDiscountFixed: state.activeDiscountFixed,
@@ -359,6 +373,7 @@ export function useInvoiceStore() {
     addItem: invoiceStore.addItem.bind(invoiceStore),
     updateQty: invoiceStore.updateQty.bind(invoiceStore),
     removeItem: invoiceStore.removeItem.bind(invoiceStore),
+    setName: invoiceStore.setName.bind(invoiceStore),
     setNote: invoiceStore.setNote.bind(invoiceStore),
     setDiscount: invoiceStore.setDiscount.bind(invoiceStore),
     saveActive: invoiceStore.saveActive.bind(invoiceStore),

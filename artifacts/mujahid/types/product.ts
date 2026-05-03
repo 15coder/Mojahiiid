@@ -31,6 +31,7 @@ export interface AppSettings {
   lastBackupDate?: string;
   autoLockMinutes?: number;
   lowStockThreshold?: number;
+  displayCurrency?: 'SYP_NEW' | 'SYP_OLD' | 'USD';
 }
 
 export type TrendDirection = 'up' | 'down' | 'neutral';
