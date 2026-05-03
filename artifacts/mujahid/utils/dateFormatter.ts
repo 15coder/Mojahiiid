@@ -67,7 +67,7 @@ export function formatPrice(value: number, currency: 'SYP' | 'USD'): string {
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value) + ' ل.س'
+    }).format(value / 100) + ' ل.س'
   );
 }
 
@@ -84,18 +84,17 @@ export function formatPriceCurrency(
     }).format(value);
   }
   if (displayCurrency === 'SYP_OLD') {
-    const oldValue = value * 100;
     return (
       new Intl.NumberFormat('ar-SY', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-      }).format(oldValue) + ' ل.س.ق'
+      }).format(value) + ' ل.س.ق'
     );
   }
   return (
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value) + ' ل.س'
+    }).format(value / 100) + ' ل.س'
   );
 }

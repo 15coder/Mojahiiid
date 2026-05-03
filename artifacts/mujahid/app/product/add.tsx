@@ -296,7 +296,7 @@ export default function AddProductScreen() {
               />
             </View>
             <View style={styles.flex}>
-              <FieldLabel label="بالليرة ل.س" colors={colors} />
+              <FieldLabel label="ليرة قديمة ل.س.ق" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={costSYP}
@@ -325,7 +325,7 @@ export default function AddProductScreen() {
               />
             </View>
             <View style={styles.flex}>
-              <FieldLabel label="بالليرة ل.س" colors={colors} />
+              <FieldLabel label="ليرة قديمة ل.س.ق" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={sellSYP}
@@ -338,7 +338,7 @@ export default function AddProductScreen() {
             </View>
           </View>
           <Text style={[styles.rateNote, { color: colors.silver }]}>
-            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س
+            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س جديدة
           </Text>
         </Section>
 

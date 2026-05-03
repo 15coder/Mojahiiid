@@ -464,7 +464,7 @@ export default function ProductsScreen() {
                           {p.name}
                         </Text>
                         <Text style={[styles.recentPrice, { color: '#22C55E' }]} numberOfLines={1}>
-                          {p.sellingPriceSYP.toLocaleString('ar-SY')}
+                          {(p.sellingPriceSYP / 100).toLocaleString('ar-SY')} ل.س
                         </Text>
                       </Pressable>
                     );

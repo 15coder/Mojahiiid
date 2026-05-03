@@ -287,7 +287,7 @@ export default function EditProductScreen() {
         {/* Cost prices */}
         <View style={styles.twoCol}>
           <View style={styles.flex}>
-            <FieldSection title="تكلفة ل.س" colors={colors}>
+            <FieldSection title="تكلفة ل.س.ق (قديمة)" colors={colors}>
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={costSYP}
@@ -317,7 +317,7 @@ export default function EditProductScreen() {
         {/* Selling prices */}
         <View style={styles.twoCol}>
           <View style={styles.flex}>
-            <FieldSection title="بيع ل.س" colors={colors}>
+            <FieldSection title="بيع ل.س.ق (قديمة)" colors={colors}>
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={sellSYP}
@@ -358,7 +358,7 @@ export default function EditProductScreen() {
               color={profitSYP >= 0 ? '#22C55E' : '#EF4444'}
             />
             <Text style={[styles.profitText, { color: profitSYP >= 0 ? '#22C55E' : '#EF4444' }]}>
-              {profitSYP >= 0 ? 'ربح' : 'خسارة'}: {Math.abs(profitSYP).toLocaleString('ar-SY')} ل.س
+              {profitSYP >= 0 ? 'ربح' : 'خسارة'}: {(Math.abs(profitSYP) / 100).toLocaleString('ar-SY')} ل.س
               {costSYPNum > 0 && ` (${Math.abs(marginPct).toFixed(1)}%)`}
             </Text>
           </View>

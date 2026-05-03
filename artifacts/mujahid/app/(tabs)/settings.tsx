@@ -381,8 +381,6 @@ export default function SettingsScreen() {
     ? { uri: settings.appIconUri }
     : require('@/assets/images/icon.png');
 
-  const displayCurrency = settings.displayCurrency ?? 'SYP_NEW';
-
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -459,48 +457,6 @@ export default function SettingsScreen() {
           })}
         </View>
 
-        {/* ─── Currency Display ─── */}
-        <SectionHeader title="عرض العملة" colors={colors} icon="cash-outline" />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0 }]}>
-          {([
-            { key: 'SYP_NEW' as const, label: 'ليرة سورية جديدة', sub: 'السعر الحالي كما هو — ل.س', icon: 'wallet-outline' },
-            { key: 'SYP_OLD' as const, label: 'ليرة سورية قديمة', sub: 'السعر × ١٠٠ — ل.س.ق', icon: 'time-outline' },
-            { key: 'USD' as const, label: 'دولار أمريكي', sub: 'عرض الأسعار بالدولار — $', icon: 'logo-usd' },
-          ]).map(({ key, label, sub, icon }, idx) => {
-            const isActive = displayCurrency === key;
-            return (
-              <React.Fragment key={key}>
-                {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
-                <TouchableOpacity
-                  style={[styles.modeRow, { paddingVertical: 14 }]}
-                  onPress={() => { updateSettings({ displayCurrency: key }); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                >
-                  {isActive
-                    ? <Ionicons name="radio-button-on" size={22} color={colors.primary} />
-                    : <Ionicons name="radio-button-off" size={22} color={colors.silver} />}
-                  <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
-                    <Text style={[styles.modeLabel, { color: isActive ? colors.primary : colors.foreground }]}>{label}</Text>
-                    <Text style={[styles.rowSub, { color: colors.mutedForeground }]}>{sub}</Text>
-                  </View>
-                  <View style={[styles.secIconWrap, { backgroundColor: isActive ? colors.primary + '15' : colors.secondary }]}>
-                    <Ionicons name={icon as any} size={20} color={isActive ? colors.primary : colors.silver} />
-                  </View>
-                </TouchableOpacity>
-              </React.Fragment>
-            );
-          })}
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <View style={[styles.currencyNote, { backgroundColor: colors.primary + '10' }]}>
-            <Ionicons name="information-circle-outline" size={14} color={colors.primary} />
-            <Text style={[styles.currencyNoteText, { color: colors.primary }]}>
-              {displayCurrency === 'SYP_OLD'
-                ? 'الليرة القديمة = الليرة الجديدة × ١٠٠ (إضافة صفرين)'
-                : displayCurrency === 'SYP_NEW'
-                  ? 'الليرة الجديدة = الليرة القديمة ÷ ١٠٠ (حذف آخر رقمين)'
-                  : 'الأسعار تُحوَّل تلقائياً بسعر الصرف الحالي'}
-            </Text>
-          </View>
-        </View>
 
         {/* ─── Display Preferences ─── */}
         <SectionHeader title="تفضيلات العرض" colors={colors} icon="eye-outline" />

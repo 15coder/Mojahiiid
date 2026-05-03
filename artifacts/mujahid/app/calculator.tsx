@@ -19,7 +19,6 @@ import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from 'react-native-re
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
-import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
 import { InvoiceItem, SavedInvoice, StatsPeriod, useInvoiceStore } from '@/utils/invoiceStore';
 import { formatArabicDateShort, formatPrice, formatPriceCurrency } from '@/utils/dateFormatter';
@@ -60,8 +59,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { products } = useProducts();
-  const { settings } = useSettings();
-  const displayCurrency = settings.displayCurrency ?? 'SYP_NEW';
+  const displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD' = 'SYP_NEW';
 
   const {
     activeItems,
@@ -245,8 +243,7 @@ export default function CalculatorScreen() {
 
   const totalItems = activeItems.reduce((s, i) => s + i.qty, 0);
 
-  const currencyLabel =
-    displayCurrency === 'SYP_OLD' ? 'ل.س.ق' : displayCurrency === 'USD' ? '$' : 'ل.س';
+  const currencyLabel = 'ل.س';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -546,9 +543,7 @@ export default function CalculatorScreen() {
                   <Text style={[styles.totalSYP, { color: colors.primary }]}>
                     {formatPriceCurrency(finalTotalSYP, displayCurrency)}
                   </Text>
-                  {displayCurrency !== 'USD' && (
-                    <Text style={[styles.totalUSD, { color: colors.silver }]}>{formatPrice(finalTotalUSD, 'USD')}</Text>
-                  )}
+                  <Text style={[styles.totalUSD, { color: colors.silver }]}>{formatPrice(finalTotalUSD, 'USD')}</Text>
                 </View>
                 <View style={styles.totalRight}>
                   <View style={[styles.totalCountBadge, { backgroundColor: colors.primary + '15' }]}>
@@ -674,11 +669,9 @@ export default function CalculatorScreen() {
                             </View>
                           )}
                           <View style={[styles.savedInvoiceTotalsRow, { borderTopColor: colors.border }]}>
-                            {displayCurrency !== 'USD' && (
-                              <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
-                                {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
-                              </Text>
-                            )}
+                            <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
+                              {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
+                            </Text>
                             <Text style={[styles.savedInvTotalSYP, { color: colors.primary }]}>
                               الإجمالي: {formatPriceCurrency(displayTotal, displayCurrency)}
                             </Text>
@@ -765,9 +758,7 @@ export default function CalculatorScreen() {
                   <Text style={[styles.statsBigLabel, { color: colors.foreground }]}>إجمالي المبيعات</Text>
                 </View>
                 <Text style={[styles.statsBigValue, { color: colors.primary }]}>{formatPriceCurrency(Math.round(stats.totalSYP), displayCurrency)}</Text>
-                {displayCurrency !== 'USD' && (
-                  <Text style={[styles.statsBigSub, { color: colors.silver }]}>{formatPrice(stats.totalUSD, 'USD')}</Text>
-                )}
+                <Text style={[styles.statsBigSub, { color: colors.silver }]}>{formatPrice(stats.totalUSD, 'USD')}</Text>
               </View>
 
               <Text style={[styles.statsHistoryTitle, { color: colors.foreground }]}>الفواتير</Text>
