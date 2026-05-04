@@ -15,6 +15,7 @@ config.resolver.nodeModulesPaths = [
 
 config.resolver.blockList = [
   /node_modules\/.*\/node_modules\/drizzle-orm_tmp_.*/,
+  /\.local[/\\].*/,
 ];
 
 module.exports = config;

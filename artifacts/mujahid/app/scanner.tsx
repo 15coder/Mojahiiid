@@ -159,7 +159,7 @@ export default function ScannerScreen() {
     playBeep();
     saveRecentBarcode(data);
 
-    if (returnTo === 'add') {
+    if (returnTo === 'add' || returnTo === 'calculator') {
       isNavigating.current = true;
       setScanned(true);
       setLastCode(data);

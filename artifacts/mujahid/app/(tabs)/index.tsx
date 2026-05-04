@@ -205,6 +205,15 @@ export default function ProductsScreen() {
 
   const speedDialActions: SpeedDialAction[] = [
     {
+      icon: 'calculator-outline',
+      label: 'الحاسبة',
+      color: '#1B3A70',
+      onPress: () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        router.push('/calculator');
+      },
+    },
+    {
       icon: 'scan-outline',
       label: 'الباركود',
       color: '#6C5CE7',
