@@ -351,10 +351,10 @@ export function useInvoiceStore() {
     return unsub;
   }, []);
 
-  const rawSYP = invoiceStore.getTotalSYP(state.activeItems);
-  const rawUSD = invoiceStore.getTotalUSD(state.activeItems);
-  const finalSYP = invoiceStore.getActiveFinalSYP();
-  const finalUSD = invoiceStore.getActiveFinalUSD();
+  const rawSYP = state.activeItems.reduce((s, i) => s + i.sellingPriceSYP * i.qty, 0);
+  const rawUSD = state.activeItems.reduce((s, i) => s + i.sellingPriceUSD * i.qty, 0);
+  const finalSYP = Math.max(0, rawSYP * (1 - state.activeDiscountPct / 100) - state.activeDiscountFixed);
+  const finalUSD = rawSYP > 0 ? rawUSD * (finalSYP / rawSYP) : rawUSD;
 
   return {
     state,
