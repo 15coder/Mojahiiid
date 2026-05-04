@@ -7,14 +7,13 @@ export default function Home() {
   const { invoices, products, exchangeRateOld, exchangeRateNew } = useApp();
 
   const totalSalesOld = invoices.reduce((s, inv) => s + inv.totalOld, 0);
-  const totalSalesNew = invoices.reduce((s, inv) => s + inv.totalNew, 0);
   const totalSalesUsd = invoices.reduce((s, inv) => s + inv.totalUsd, 0);
   const recentInvoices = [...invoices].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
 
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="bg-primary text-primary-foreground rounded-xl p-5 shadow">
+      <div className="bg-primary text-primary-foreground rounded-xl p-5 shadow-sm">
         <h2 className="text-xl font-bold mb-1">مرحباً بك 👋</h2>
         <p className="text-sm opacity-80">تطبيق مجاهد للتجارة - إدارة الفواتير والمبيعات</p>
         <div className="mt-3 text-xs opacity-70">
@@ -33,9 +32,9 @@ export default function Home() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Link href="/calculator">
-          <div className="bg-white border-2 border-primary/20 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/50 hover:shadow-md transition group">
-            <div className="bg-primary/10 text-primary rounded-lg p-2.5 group-hover:bg-primary group-hover:text-white transition">
-              <Calculator size={22} />
+          <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/40 transition-colors">
+            <div className="bg-primary/10 text-primary rounded-lg p-2.5">
+              <Calculator size={20} />
             </div>
             <div>
               <div className="font-bold text-sm">فاتورة جديدة</div>
@@ -44,9 +43,9 @@ export default function Home() {
           </div>
         </Link>
         <Link href="/invoices">
-          <div className="bg-white border-2 border-blue-200 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-blue-400 hover:shadow-md transition group">
-            <div className="bg-blue-50 text-blue-600 rounded-lg p-2.5 group-hover:bg-blue-600 group-hover:text-white transition">
-              <FileText size={22} />
+          <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-blue-300 transition-colors">
+            <div className="bg-blue-50 text-blue-600 rounded-lg p-2.5">
+              <FileText size={20} />
             </div>
             <div>
               <div className="font-bold text-sm">عرض الفواتير</div>
@@ -55,9 +54,9 @@ export default function Home() {
           </div>
         </Link>
         <Link href="/products">
-          <div className="bg-white border-2 border-green-200 rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-green-400 hover:shadow-md transition group">
-            <div className="bg-green-50 text-green-600 rounded-lg p-2.5 group-hover:bg-green-600 group-hover:text-white transition">
-              <Package size={22} />
+          <div className="bg-white border border-border rounded-xl p-4 flex items-center gap-3 cursor-pointer hover:border-green-300 transition-colors">
+            <div className="bg-green-50 text-green-600 rounded-lg p-2.5">
+              <Package size={20} />
             </div>
             <div>
               <div className="font-bold text-sm">إدارة المنتجات</div>
@@ -80,7 +79,7 @@ export default function Home() {
             <div className="text-3xl mb-2">📋</div>
             <p className="text-sm">لا توجد فواتير بعد</p>
             <Link href="/calculator">
-              <button className="mt-3 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm flex items-center gap-2 mx-auto hover:opacity-90">
+              <button className="mt-3 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm flex items-center gap-2 mx-auto">
                 <Plus size={16} />
                 إنشاء أول فاتورة
               </button>
@@ -90,7 +89,7 @@ export default function Home() {
           <div className="space-y-2">
             {recentInvoices.map((inv) => (
               <Link key={inv.id} href={`/invoice/${inv.id}`}>
-                <div className="bg-white border border-border rounded-xl p-4 flex justify-between items-start hover:shadow-md transition cursor-pointer">
+                <div className="bg-white border border-border rounded-xl p-4 flex justify-between items-start hover:border-primary/30 transition-colors cursor-pointer">
                   <div>
                     <div className="font-bold text-sm">فاتورة رقم {inv.number}</div>
                     <div className="text-sm text-muted-foreground">{inv.customerName}</div>

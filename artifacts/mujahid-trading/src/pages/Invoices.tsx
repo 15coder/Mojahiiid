@@ -28,7 +28,7 @@ export default function Invoices() {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">سجل الفواتير</h2>
         <Link href="/calculator">
-          <button className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm hover:opacity-90">
+          <button className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm">
             <Plus size={16} />
             فاتورة جديدة
           </button>
@@ -37,13 +37,13 @@ export default function Invoices() {
 
       {/* Search */}
       <div className="relative">
-        <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="ابحث باسم العميل أو رقم الفاتورة..."
-          className="w-full border border-border rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-right bg-white"
+          className="w-full border border-border rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 text-right bg-white"
         />
       </div>
 
@@ -72,7 +72,7 @@ export default function Invoices() {
           <p>{invoices.length === 0 ? "لا توجد فواتير بعد" : "لا توجد نتائج للبحث"}</p>
           {invoices.length === 0 && (
             <Link href="/calculator">
-              <button className="mt-3 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm hover:opacity-90">
+              <button className="mt-3 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm">
                 إنشاء أول فاتورة
               </button>
             </Link>
@@ -89,27 +89,25 @@ export default function Invoices() {
                   {inv.notes && <div className="text-xs text-green-700 mt-0.5">{inv.notes}</div>}
                   <div className="text-xs text-muted-foreground mt-0.5">{arabicDate(new Date(inv.date))}</div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <Link href={`/invoice/${inv.id}`}>
-                    <button className="p-2 text-primary hover:bg-primary/10 rounded-lg transition">
+                    <button className="p-2 text-primary hover:bg-primary/8 rounded-lg transition-colors">
                       <Eye size={16} />
                     </button>
                   </Link>
                   <button
                     onClick={() => handleDelete(inv.id, inv.number)}
-                    className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition"
+                    className="p-2 text-destructive hover:bg-destructive/8 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* Items summary */}
               <div className="text-xs text-muted-foreground mb-2">
                 {inv.items.map((item) => `${item.product.name} ×${item.quantity}`).join(" • ")}
               </div>
 
-              {/* Totals */}
               <div className="bg-muted/40 rounded-lg p-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 <span className="text-primary font-bold">{formatOld(inv.totalOld)}</span>
                 <span className="text-muted-foreground">|</span>

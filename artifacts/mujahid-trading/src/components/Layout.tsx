@@ -21,7 +21,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-primary text-primary-foreground shadow-md sticky top-0 z-50 no-print">
+      <header className="bg-primary text-primary-foreground shadow-sm sticky top-0 z-50 no-print">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="text-2xl">🏪</div>
           <div>
@@ -32,7 +32,7 @@ export default function Layout({ children }: LayoutProps) {
       </header>
 
       {/* Nav */}
-      <nav className="bg-white border-b border-border shadow-sm no-print">
+      <nav className="bg-white border-b border-border no-print">
         <div className="max-w-5xl mx-auto px-4 flex gap-1 overflow-x-auto">
           {navItems.map(({ path, label, icon: Icon }) => (
             <Link key={path} href={path}>
@@ -41,10 +41,10 @@ export default function Layout({ children }: LayoutProps) {
                   "flex items-center gap-2 px-3 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors",
                   location === path
                     ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon size={16} />
+                <Icon size={15} />
                 {label}
               </button>
             </Link>
