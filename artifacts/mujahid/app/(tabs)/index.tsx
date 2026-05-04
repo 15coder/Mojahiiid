@@ -17,8 +17,6 @@ import {
 } from 'react-native';
 import Animated, {
   FadeIn,
-  FadeInDown,
-  FadeInUp,
   LinearTransition,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -245,8 +243,7 @@ export default function ProductsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <Animated.View
-        entering={FadeInDown.duration(350).springify().damping(22)}
+      <View
         style={[styles.header, { paddingTop: topInset + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}
       >
         <View style={styles.headerTop}>
@@ -295,7 +292,7 @@ export default function ProductsScreen() {
 
         {/* Barcode search */}
         {showBarcodeSearch && (
-          <Animated.View entering={FadeInDown.duration(220).springify()} style={styles.barcodeSearchRow}>
+          <Animated.View entering={FadeIn.duration(200)} style={styles.barcodeSearchRow}>
             <Ionicons name="barcode-outline" size={18} color={colors.silver} />
             <TextInput
               ref={barcodeInputRef}
@@ -392,7 +389,7 @@ export default function ProductsScreen() {
             </Pressable>
           )}
         </ScrollView>
-      </Animated.View>
+      </View>
 
       {/* Content */}
       {isLoading ? (
@@ -400,7 +397,7 @@ export default function ProductsScreen() {
           <SkeletonList count={6} grid={gridView} />
         </Animated.View>
       ) : sortedFiltered.length === 0 && !showRecentlyViewed ? (
-        <Animated.View entering={FadeInDown.duration(350).springify().damping(20)} style={styles.center}>
+        <Animated.View entering={FadeIn.duration(250)} style={styles.center}>
           <View style={[styles.emptyIconWrap, { backgroundColor: colors.secondary }]}>
             {activeCategory ? (
               <Ionicons name={activeCategory.icon as any} size={40} color={activeCategory.color} />
@@ -442,7 +439,7 @@ export default function ProductsScreen() {
           }
           ListHeaderComponent={
             showRecentlyViewed ? (
-              <Animated.View entering={FadeIn.duration(300)} style={styles.recentSection}>
+              <Animated.View entering={FadeIn.duration(250)} style={styles.recentSection}>
                 <View style={styles.recentHeader}>
                   <Ionicons name="time-outline" size={14} color={colors.silver} />
                   <Text style={[styles.recentTitle, { color: colors.mutedForeground }]}>شاهدته مؤخراً</Text>
@@ -479,8 +476,8 @@ export default function ProductsScreen() {
           }
           renderItem={({ item, index }) => (
             <Animated.View
-              entering={FadeInUp.delay(index * 22).duration(280).springify().damping(20).stiffness(160)}
-              layout={LinearTransition.springify().damping(20)}
+              entering={FadeIn.delay(index * 18).duration(220)}
+              layout={LinearTransition.duration(200)}
               style={gridView ? styles.gridItem : undefined}
             >
               <ProductCard
@@ -507,7 +504,7 @@ export default function ProductsScreen() {
       />
 
       {/* Sort Modal */}
-      <Modal visible={showSortModal} transparent animationType="slide" onRequestClose={() => setShowSortModal(false)}>
+      <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)}>
         <Pressable style={styles.sortOverlay} onPress={() => setShowSortModal(false)}>
           <View style={[styles.sortSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable onPress={() => {}}>

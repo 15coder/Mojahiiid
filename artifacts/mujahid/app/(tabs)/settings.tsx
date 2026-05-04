@@ -20,7 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCategories } from '@/context/CategoriesContext';
@@ -717,93 +717,94 @@ export default function SettingsScreen() {
         </View>
 
         {/* Backup */}
-        <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="cloud-outline" />
+        <SectionHeader title="النسخ الاحتياطي" colors={colors} icon="archive-outline" />
 
-        {/* Backup Status Card */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0, padding: 0, overflow: 'hidden' }]}>
-          {/* Last backup status */}
-          {settings.lastBackupDate ? (
-            <View style={[styles.backupStatusRow, { backgroundColor: colors.success + '12', borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-              <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Text style={[styles.backupStatusTitle, { color: colors.success ?? '#22c55e' }]}>النسخة الاحتياطية محدّثة</Text>
-                <Text style={[styles.backupStatusSub, { color: colors.mutedForeground }]}>
-                  آخر تصدير: {formatArabicDateShort(settings.lastBackupDate)}
-                </Text>
-              </View>
-              <View style={[styles.backupStatusIcon, { backgroundColor: (colors.success ?? '#22c55e') + '20' }]}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.success ?? '#22c55e'} />
-              </View>
+        {/* Status Banner */}
+        {settings.lastBackupDate ? (
+          <View style={[styles.backupBanner, { backgroundColor: (colors.success ?? '#22c55e') + '14', borderColor: (colors.success ?? '#22c55e') + '40' }]}>
+            <View style={[styles.backupBannerIcon, { backgroundColor: (colors.success ?? '#22c55e') + '22' }]}>
+              <Ionicons name="checkmark-circle" size={20} color={colors.success ?? '#22c55e'} />
             </View>
-          ) : (
-            <View style={[styles.backupStatusRow, { backgroundColor: colors.warning + '12', borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-              <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Text style={[styles.backupStatusTitle, { color: colors.warning }]}>لا توجد نسخة احتياطية</Text>
-                <Text style={[styles.backupStatusSub, { color: colors.mutedForeground }]}>يُنصح بتصدير نسخة الآن لحماية بياناتك</Text>
-              </View>
-              <View style={[styles.backupStatusIcon, { backgroundColor: colors.warning + '20' }]}>
-                <Ionicons name="warning-outline" size={22} color={colors.warning} />
-              </View>
-            </View>
-          )}
-
-          {/* Stats */}
-          <View style={[styles.backupStatsRow, { backgroundColor: colors.secondary, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-            <View style={styles.backupStatItem}>
-              <Text style={[styles.backupStatNum, { color: colors.foreground }]}>{products.length}</Text>
-              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>منتج</Text>
-            </View>
-            <View style={[styles.backupStatDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.backupStatItem}>
-              <Text style={[styles.backupStatNum, { color: colors.foreground }]}>{categories.length}</Text>
-              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>قسم</Text>
-            </View>
-            <View style={[styles.backupStatDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.backupStatItem}>
-              <Text style={[styles.backupStatNum, { color: colors.primary }]}>{savedInvoices.length}</Text>
-              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>فاتورة</Text>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.backupBannerTitle, { color: colors.success ?? '#22c55e' }]}>بياناتك محمية</Text>
+              <Text style={[styles.backupBannerSub, { color: colors.mutedForeground }]}>
+                آخر نسخة: {formatArabicDateShort(settings.lastBackupDate)}
+              </Text>
             </View>
           </View>
+        ) : (
+          <View style={[styles.backupBanner, { backgroundColor: colors.warning + '14', borderColor: colors.warning + '40' }]}>
+            <View style={[styles.backupBannerIcon, { backgroundColor: colors.warning + '22' }]}>
+              <Ionicons name="warning-outline" size={20} color={colors.warning} />
+            </View>
+            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+              <Text style={[styles.backupBannerTitle, { color: colors.warning }]}>لا توجد نسخة احتياطية</Text>
+              <Text style={[styles.backupBannerSub, { color: colors.mutedForeground }]}>صدّر نسخة الآن لحماية بياناتك</Text>
+            </View>
+          </View>
+        )}
 
-          {/* Export Row */}
+        {/* Data Summary */}
+        <View style={[styles.backupSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.backupSummaryItem}>
+            <Text style={[styles.backupSummaryNum, { color: colors.foreground }]}>{products.length}</Text>
+            <Text style={[styles.backupSummaryLabel, { color: colors.mutedForeground }]}>منتج</Text>
+          </View>
+          <View style={[styles.backupSummaryDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.backupSummaryItem}>
+            <Text style={[styles.backupSummaryNum, { color: colors.foreground }]}>{categories.length}</Text>
+            <Text style={[styles.backupSummaryLabel, { color: colors.mutedForeground }]}>قسم</Text>
+          </View>
+          <View style={[styles.backupSummaryDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.backupSummaryItem}>
+            <Text style={[styles.backupSummaryNum, { color: colors.primary }]}>{savedInvoices.length}</Text>
+            <Text style={[styles.backupSummaryLabel, { color: colors.mutedForeground }]}>فاتورة</Text>
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, gap: 0, padding: 0, overflow: 'hidden' }]}>
+
+          {/* Export */}
           <TouchableOpacity
-            style={[styles.backupActionRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+            style={[styles.backupRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
             onPress={openBackupChoice}
             disabled={isExporting}
             activeOpacity={0.8}
           >
-            <Ionicons name="chevron-back" size={16} color={colors.silver} />
+            <View style={[styles.backupRowIcon, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="arrow-down-circle-outline" size={22} color={colors.primary} />
+            </View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={[styles.backupActionTitle, { color: colors.foreground }]}>
+              <Text style={[styles.backupRowTitle, { color: colors.foreground }]}>
                 {isExporting ? 'جاري التصدير...' : 'تصدير نسخة احتياطية'}
               </Text>
-              <Text style={[styles.backupActionSub, { color: colors.mutedForeground }]}>
-                حفظ ملف JSON على جهازك — مجلد Nidaa/Backups
+              <Text style={[styles.backupRowSub, { color: colors.mutedForeground }]}>
+                حفظ ملف JSON على الجهاز ومشاركته
               </Text>
             </View>
-            <View style={[styles.backupActionIcon, { backgroundColor: colors.primary + '15' }]}>
-              <Ionicons name="download-outline" size={20} color={colors.primary} />
-            </View>
+            <Ionicons name="chevron-back" size={16} color={colors.silver} />
           </TouchableOpacity>
 
-          {/* Import Row */}
+          {/* Import */}
           <TouchableOpacity
-            style={styles.backupActionRow}
+            style={styles.backupRow}
             onPress={handleImport}
             disabled={isImporting}
             activeOpacity={0.8}
           >
-            <Ionicons name="chevron-back" size={16} color={colors.silver} />
+            <View style={[styles.backupRowIcon, { backgroundColor: colors.warning + '15' }]}>
+              <Ionicons name="arrow-up-circle-outline" size={22} color={colors.warning} />
+            </View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <Text style={[styles.backupActionTitle, { color: colors.foreground }]}>
-                {isImporting ? 'جاري الاستيراد...' : 'استيراد من ملف'}
+              <Text style={[styles.backupRowTitle, { color: colors.foreground }]}>
+                {isImporting ? 'جاري الاستعادة...' : 'استعادة من ملف'}
               </Text>
-              <Text style={[styles.backupActionSub, { color: colors.destructive }]}>
-                تحذير: سيتم دمج البيانات مع البيانات الحالية
+              <Text style={[styles.backupRowSub, { color: colors.mutedForeground }]}>
+                استيراد نسخة احتياطية سابقة
               </Text>
             </View>
-            <View style={[styles.backupActionIcon, { backgroundColor: colors.destructive + '12' }]}>
-              <Ionicons name="cloud-upload-outline" size={20} color={colors.destructive} />
-            </View>
+            <Ionicons name="chevron-back" size={16} color={colors.silver} />
           </TouchableOpacity>
         </View>
 
@@ -913,7 +914,7 @@ export default function SettingsScreen() {
       >
         <Pressable style={styles.confirmOverlay} onPress={() => setActiveModal('none')}>
           <Animated.View
-            entering={FadeInDown.duration(250).springify()}
+            entering={FadeIn.duration(220)}
             style={[styles.confirmBox, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <Pressable onPress={() => {}}>
@@ -1356,7 +1357,7 @@ function ConfirmModal({
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.confirmOverlay} onPress={onClose}>
         <Animated.View
-          entering={FadeInDown.duration(250).springify()}
+          entering={FadeIn.duration(220)}
           style={[styles.confirmBox, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <Pressable onPress={() => {}}>
@@ -1546,30 +1547,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
   },
   lastBackupText: { fontSize: 12, fontFamily: 'Tajawal_500Medium' },
-  backupPathRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1,
+  backupBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12,
   },
-  backupPathText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  backupStatsRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    paddingVertical: 12,
+  backupBannerIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  backupBannerTitle: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  backupBannerSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginTop: 2 },
+  backupSummary: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 14, borderWidth: 1, paddingVertical: 14,
   },
-  backupStatItem: { alignItems: 'center', flex: 1 },
-  backupStatNum: { fontSize: 20, fontFamily: 'Tajawal_700Bold' },
-  backupStatLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
-  backupStatDivider: { width: 1, height: 30 },
-  backupBtns: { flexDirection: 'row', gap: 10 },
-  backupBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
-  backupBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
-  backupStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
-  backupStatusIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  backupStatusTitle: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  backupStatusSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginTop: 2 },
-  backupActionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 14 },
-  backupActionIcon: { width: 42, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  backupActionTitle: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  backupActionSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginTop: 2 },
+  backupSummaryItem: { alignItems: 'center', flex: 1 },
+  backupSummaryNum: { fontSize: 20, fontFamily: 'Tajawal_700Bold' },
+  backupSummaryLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular', marginTop: 2 },
+  backupSummaryDivider: { width: 1, height: 32 },
+  backupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 14 },
+  backupRowIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  backupRowTitle: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  backupRowSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginTop: 2 },
   backupChoiceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 10,

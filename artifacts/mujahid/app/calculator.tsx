@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
@@ -360,7 +360,7 @@ export default function CalculatorScreen() {
           {/* Invoice Name Input */}
           {showNameInput && (
             <Animated.View
-              entering={FadeInDown.duration(200)}
+              entering={FadeIn.duration(200)}
               style={[styles.nameNoteRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
             >
               <View style={[styles.nameNoteLabel, { backgroundColor: colors.primary + '18' }]}>
@@ -386,7 +386,7 @@ export default function CalculatorScreen() {
           {/* Invoice Note Input */}
           {showNoteInput && (
             <Animated.View
-              entering={FadeInDown.duration(200)}
+              entering={FadeIn.duration(200)}
               style={[styles.nameNoteRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
             >
               <View style={[styles.nameNoteLabel, { backgroundColor: colors.silver + '22' }]}>
@@ -412,7 +412,7 @@ export default function CalculatorScreen() {
           {/* Search */}
           {showSearch && (
             <Animated.View
-              entering={FadeInDown.duration(200).springify()}
+              entering={FadeIn.duration(200)}
               style={[styles.searchContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
             >
               <View style={[styles.searchRow, { backgroundColor: colors.input, borderColor: colors.border }]}>
@@ -477,7 +477,7 @@ export default function CalculatorScreen() {
               contentContainerStyle={[styles.listContent, { paddingBottom: bottomInset + 240 }]}
               showsVerticalScrollIndicator={false}
               renderItem={({ item, index }) => (
-                <Animated.View entering={FadeInUp.delay(index * 25).duration(200).springify()}>
+                <Animated.View entering={FadeIn.delay(index * 20).duration(200)}>
                   <InvoiceRow
                     item={item}
                     colors={colors}
@@ -495,7 +495,7 @@ export default function CalculatorScreen() {
           {/* Total Footer */}
           {hasItems && (
             <Animated.View
-              entering={FadeInDown.duration(300).springify()}
+              entering={FadeIn.duration(250)}
               style={[styles.totalFooter, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: bottomInset + 12 }]}
             >
               {/* Discount toggle */}
@@ -515,7 +515,7 @@ export default function CalculatorScreen() {
 
               {/* Discount input */}
               {showDiscount && (
-                <Animated.View entering={FadeInDown.duration(180)} style={[styles.discountRow, { borderColor: colors.border }]}>
+                <Animated.View entering={FadeIn.duration(180)} style={[styles.discountRow, { borderColor: colors.border }]}>
                   <View style={[styles.discountTypeToggle, { backgroundColor: colors.secondary, borderRadius: 10 }]}>
                     <TouchableOpacity
                       style={[styles.discountTypePill, discountType === 'pct' && { backgroundColor: colors.primary }]}
@@ -635,7 +635,7 @@ export default function CalculatorScreen() {
                 const invDisplayName = inv.name || 'فاتورة بدون اسم';
                 const invDisplayNote = inv.note || 'لا يوجد ملاحظة';
                 return (
-                  <Animated.View entering={FadeInDown.delay(index * 30).duration(200).springify()}>
+                  <Animated.View entering={FadeIn.delay(index * 20).duration(200)}>
                     <View style={[styles.savedInvoiceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <TouchableOpacity
                         style={styles.savedInvoiceHeader}
@@ -670,7 +670,7 @@ export default function CalculatorScreen() {
 
                       {/* Expanded */}
                       {isExpanded && (
-                        <Animated.View entering={FadeInDown.duration(200)} style={[styles.savedInvoiceItems, { borderTopColor: colors.border }]}>
+                        <Animated.View entering={FadeIn.duration(200)} style={[styles.savedInvoiceItems, { borderTopColor: colors.border }]}>
                           {/* Note display */}
                           <View style={[styles.invNoteRow, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
                             <Ionicons name="chatbubble-outline" size={13} color={colors.silver} />
@@ -824,7 +824,7 @@ export default function CalculatorScreen() {
       {/* ── EXIT MODAL ──────────────────────────────────── */}
       <Modal visible={showExitModal} transparent animationType="fade" onRequestClose={() => setShowExitModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowExitModal(false)}>
-          <Animated.View entering={FadeInDown.duration(250).springify()} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Animated.View entering={FadeIn.duration(220)} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable onPress={() => {}}>
               <View style={[styles.modalIcon, { backgroundColor: colors.primary + '18' }]}>
                 <Ionicons name="save-outline" size={28} color={colors.primary} />
@@ -852,7 +852,7 @@ export default function CalculatorScreen() {
       {/* ── CLEAR MODAL ─────────────────────────────────── */}
       <Modal visible={showClearConfirm} transparent animationType="fade" onRequestClose={() => setShowClearConfirm(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowClearConfirm(false)}>
-          <Animated.View entering={FadeInDown.duration(250).springify()} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Animated.View entering={FadeIn.duration(220)} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable onPress={() => {}}>
               <View style={[styles.modalIcon, { backgroundColor: colors.destructive + '15' }]}>
                 <Ionicons name="trash-outline" size={28} color={colors.destructive} />
@@ -875,7 +875,7 @@ export default function CalculatorScreen() {
       {/* ── DELETE SAVED MODAL ──────────────────────────── */}
       <Modal visible={!!deletingInvoiceId} transparent animationType="fade" onRequestClose={() => setDeletingInvoiceId(null)}>
         <Pressable style={styles.modalOverlay} onPress={() => setDeletingInvoiceId(null)}>
-          <Animated.View entering={FadeInDown.duration(250).springify()} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Animated.View entering={FadeIn.duration(220)} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable onPress={() => {}}>
               <View style={[styles.modalIcon, { backgroundColor: colors.destructive + '15' }]}>
                 <Ionicons name="trash-outline" size={28} color={colors.destructive} />
