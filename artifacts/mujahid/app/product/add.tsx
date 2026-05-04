@@ -396,7 +396,7 @@ export default function AddProductScreen() {
             </View>
           </View>
           <Text style={[styles.rateNote, { color: colors.silver }]}>
-            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س.ج
+            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س.ق
           </Text>
         </Section>
 

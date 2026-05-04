@@ -41,14 +41,14 @@ function buildShareText(inv: SavedInvoice, exchangeRate: number): string {
   inv.items.forEach((item) => {
     const subOld = item.sellingPriceSYP * item.qty;
     const subNew = Math.floor(subOld / 100);
-    const subUSD = exchangeRate > 0 ? (subNew / exchangeRate) : 0;
+    const subUSD = exchangeRate > 0 ? (subOld / exchangeRate) : 0;
     lines.push(`• ${item.name} × ${item.qty}`);
     lines.push(`  ${fmt(subOld)} ل.س.ق  |  ${fmt(subNew)} ل.س.ج  |  ${subUSD.toFixed(2)}$`);
   });
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   const finalOld = inv.finalTotalSYP ?? inv.totalSYP;
   const finalNew = Math.floor(finalOld / 100);
-  const finalUSD = exchangeRate > 0 ? (finalNew / exchangeRate) : 0;
+  const finalUSD = exchangeRate > 0 ? (finalOld / exchangeRate) : 0;
   if ((inv.discountPct && inv.discountPct > 0) || (inv.discountFixed && inv.discountFixed > 0)) {
     const subOld = inv.totalSYP;
     const subNew = Math.floor(subOld / 100);
@@ -62,7 +62,7 @@ function buildShareText(inv: SavedInvoice, exchangeRate: number): string {
   lines.push(`  ${fmt(finalOld)} ل.س.ق`);
   lines.push(`  ${fmt(finalNew)} ل.س.ج`);
   lines.push(`  ${finalUSD.toFixed(2)} USD`);
-  lines.push(`💱 سعر الصرف: 1$ = ${fmt(exchangeRate)} ل.س.ج = ${fmt(exchangeRate * 100)} ل.س.ق`);
+  lines.push(`💱 سعر الصرف: 1$ = ${fmt(exchangeRate)} ل.س.ق = ${fmt(Math.floor(exchangeRate / 100))} ل.س.ج`);
   lines.push(`📅 ${formatArabicDateShort(inv.createdAt)}`);
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   lines.push(BRANDING_TEXT);
@@ -73,7 +73,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { products } = useProducts();
-  const displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD' = 'SYP_NEW';
+  const displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD' = 'SYP_OLD';
   const { settings } = useSettings();
 
   const {
@@ -236,7 +236,7 @@ export default function CalculatorScreen() {
   async function handleShareInvoice(inv: SavedInvoice) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Share.share({ message: buildShareText(inv, displayCurrency) });
+      await Share.share({ message: buildShareText(inv, settings.exchangeRate) });
     } catch {}
   }
 
