@@ -60,8 +60,10 @@ export default function AddProductScreen() {
   );
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [costSYP, setCostSYP] = useState('');
+  const [costSYPNew, setCostSYPNew] = useState('');
   const [costUSD, setCostUSD] = useState('');
   const [sellSYP, setSellSYP] = useState('');
+  const [sellSYPNew, setSellSYPNew] = useState('');
   const [sellUSD, setSellUSD] = useState('');
   const [notes, setNotes] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -75,33 +77,65 @@ export default function AddProductScreen() {
 
   function handleCostSYPChange(val: string) {
     setCostSYP(val);
+    if (!val.trim() || val === '.') { setCostSYPNew(''); setCostUSD(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n) && settings.exchangeRate > 0) {
-      setCostUSD(sypToUsd(n, settings.exchangeRate).toString());
+    if (!isNaN(n)) {
+      setCostSYPNew(String(Math.floor(n / 100)));
+      if (settings.exchangeRate > 0) setCostUSD(String(sypToUsd(n, settings.exchangeRate)));
+    }
+  }
+
+  function handleCostSYPNewChange(val: string) {
+    setCostSYPNew(val);
+    if (!val.trim() || val === '.') { setCostSYP(''); setCostUSD(''); return; }
+    const n = parseFloat(val);
+    if (!isNaN(n)) {
+      const oldVal = Math.round(n * 100);
+      setCostSYP(String(oldVal));
+      if (settings.exchangeRate > 0) setCostUSD(String(sypToUsd(oldVal, settings.exchangeRate)));
     }
   }
 
   function handleCostUSDChange(val: string) {
     setCostUSD(val);
+    if (!val.trim() || val === '.') { setCostSYP(''); setCostSYPNew(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n)) {
-      setCostSYP(usdToSyp(n, settings.exchangeRate).toString());
+      const oldVal = usdToSyp(n, settings.exchangeRate);
+      setCostSYP(String(oldVal));
+      setCostSYPNew(String(Math.floor(oldVal / 100)));
     }
   }
 
   function handleSellSYPChange(val: string) {
     setSellSYP(val);
+    if (!val.trim() || val === '.') { setSellSYPNew(''); setSellUSD(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n) && settings.exchangeRate > 0) {
-      setSellUSD(sypToUsd(n, settings.exchangeRate).toString());
+    if (!isNaN(n)) {
+      setSellSYPNew(String(Math.floor(n / 100)));
+      if (settings.exchangeRate > 0) setSellUSD(String(sypToUsd(n, settings.exchangeRate)));
+    }
+  }
+
+  function handleSellSYPNewChange(val: string) {
+    setSellSYPNew(val);
+    if (!val.trim() || val === '.') { setSellSYP(''); setSellUSD(''); return; }
+    const n = parseFloat(val);
+    if (!isNaN(n)) {
+      const oldVal = Math.round(n * 100);
+      setSellSYP(String(oldVal));
+      if (settings.exchangeRate > 0) setSellUSD(String(sypToUsd(oldVal, settings.exchangeRate)));
     }
   }
 
   function handleSellUSDChange(val: string) {
     setSellUSD(val);
+    if (!val.trim() || val === '.') { setSellSYP(''); setSellSYPNew(''); return; }
     const n = parseFloat(val);
     if (!isNaN(n)) {
-      setSellSYP(usdToSyp(n, settings.exchangeRate).toString());
+      const oldVal = usdToSyp(n, settings.exchangeRate);
+      setSellSYP(String(oldVal));
+      setSellSYPNew(String(Math.floor(oldVal / 100)));
     }
   }
 
@@ -282,9 +316,9 @@ export default function AddProductScreen() {
         </Section>
 
         <Section title="أسعار التكلفة" icon="trending-down-outline" colors={colors}>
-          <View style={styles.priceRow}>
+          <View style={styles.threeCol}>
             <View style={styles.flex}>
-              <FieldLabel label="بالدولار USD" colors={colors} />
+              <FieldLabel label="USD" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={costUSD}
@@ -296,7 +330,7 @@ export default function AddProductScreen() {
               />
             </View>
             <View style={styles.flex}>
-              <FieldLabel label="ليرة قديمة ل.س.ق" colors={colors} />
+              <FieldLabel label="ل.س.ق" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={costSYP}
@@ -307,13 +341,25 @@ export default function AddProductScreen() {
                 textAlign="right"
               />
             </View>
+            <View style={styles.flex}>
+              <FieldLabel label="ل.س.ج" colors={colors} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.primary + '60', backgroundColor: colors.input }]}
+                value={costSYPNew}
+                onChangeText={handleCostSYPNewChange}
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="numeric"
+                textAlign="right"
+              />
+            </View>
           </View>
         </Section>
 
         <Section title="أسعار البيع" icon="trending-up-outline" colors={colors}>
-          <View style={styles.priceRow}>
+          <View style={styles.threeCol}>
             <View style={styles.flex}>
-              <FieldLabel label="بالدولار USD" colors={colors} />
+              <FieldLabel label="USD" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={sellUSD}
@@ -325,7 +371,7 @@ export default function AddProductScreen() {
               />
             </View>
             <View style={styles.flex}>
-              <FieldLabel label="ليرة قديمة ل.س.ق" colors={colors} />
+              <FieldLabel label="ل.س.ق" colors={colors} />
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={sellSYP}
@@ -336,9 +382,21 @@ export default function AddProductScreen() {
                 textAlign="right"
               />
             </View>
+            <View style={styles.flex}>
+              <FieldLabel label="ل.س.ج" colors={colors} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.primary + '60', backgroundColor: colors.input }]}
+                value={sellSYPNew}
+                onChangeText={handleSellSYPNewChange}
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="numeric"
+                textAlign="right"
+              />
+            </View>
           </View>
           <Text style={[styles.rateNote, { color: colors.silver }]}>
-            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س جديدة
+            سعر الصرف: 1$ = {settings.exchangeRate.toLocaleString('ar-SY')} ل.س.ج
           </Text>
         </Section>
 
@@ -462,7 +520,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 12, fontFamily: 'Tajawal_700Bold', textAlign: 'right', letterSpacing: 0.3 },
   sectionCard: { borderRadius: 16, borderWidth: 1, padding: 14, gap: 8 },
   fieldLabel: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
-  input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Tajawal_500Medium' },
+  input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 10, fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   categorySelector: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   selectedCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   selectedCategoryText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
@@ -470,7 +528,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   barcodeRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   scanBtn: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  priceRow: { flexDirection: 'row', gap: 10 },
+  threeCol: { flexDirection: 'row', gap: 8 },
   rateNote: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   textarea: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, fontFamily: 'Tajawal_500Medium', minHeight: 96, textAlignVertical: 'top' },
   imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

@@ -54,8 +54,10 @@ export default function EditProductScreen() {
   const [barcode, setBarcode] = useState(product?.barcode ?? '');
   const [categoryId, setCategoryId] = useState<string | undefined>(product?.categoryId);
   const [costSYP, setCostSYP] = useState(String(product?.costSYP ?? ''));
+  const [costSYPNew, setCostSYPNew] = useState(product?.costSYP ? String(Math.floor(product.costSYP / 100)) : '');
   const [costUSD, setCostUSD] = useState(String(product?.costUSD ?? ''));
   const [sellSYP, setSellSYP] = useState(String(product?.sellingPriceSYP ?? ''));
+  const [sellSYPNew, setSellSYPNew] = useState(product?.sellingPriceSYP ? String(Math.floor(product.sellingPriceSYP / 100)) : '');
   const [sellUSD, setSellUSD] = useState(String(product?.sellingPriceUSD ?? ''));
   const [notes, setNotes] = useState(product?.notes ?? '');
   const [images, setImages] = useState<string[]>(product?.imagePaths ?? []);
@@ -66,7 +68,6 @@ export default function EditProductScreen() {
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const selectedCategory = visibleCategories.find((c) => c.id === categoryId);
 
-  // ── Dirty check ────────────────────────────────────────────
   const isDirty = useMemo(() => {
     if (!product) return false;
     return (
@@ -81,7 +82,6 @@ export default function EditProductScreen() {
     );
   }, [name, barcode, costSYP, costUSD, sellSYP, sellUSD, notes, categoryId, product]);
 
-  // ── Android hardware back ───────────────────────────────────
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -94,7 +94,6 @@ export default function EditProductScreen() {
     return () => sub.remove();
   }, [isDirty]);
 
-  // ── Live profit margin ──────────────────────────────────────
   const costSYPNum = parseFloat(costSYP) || 0;
   const sellSYPNum = parseFloat(sellSYP) || 0;
   const profitSYP = sellSYPNum - costSYPNum;
@@ -109,33 +108,68 @@ export default function EditProductScreen() {
     );
   }
 
-  // ── Price field handlers ────────────────────────────────────
   function handleCostSYPChange(val: string) {
     setCostSYP(val);
-    if (!val.trim() || val === '.') { setCostUSD(''); return; }
+    if (!val.trim() || val === '.') { setCostSYPNew(''); setCostUSD(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n) && settings.exchangeRate > 0) setCostUSD(String(sypToUsd(n, settings.exchangeRate)));
+    if (!isNaN(n)) {
+      setCostSYPNew(String(Math.floor(n / 100)));
+      if (settings.exchangeRate > 0) setCostUSD(String(sypToUsd(n, settings.exchangeRate)));
+    }
+  }
+
+  function handleCostSYPNewChange(val: string) {
+    setCostSYPNew(val);
+    if (!val.trim() || val === '.') { setCostSYP(''); setCostUSD(''); return; }
+    const n = parseFloat(val);
+    if (!isNaN(n)) {
+      const oldVal = Math.round(n * 100);
+      setCostSYP(String(oldVal));
+      if (settings.exchangeRate > 0) setCostUSD(String(sypToUsd(oldVal, settings.exchangeRate)));
+    }
   }
 
   function handleCostUSDChange(val: string) {
     setCostUSD(val);
-    if (!val.trim() || val === '.') { setCostSYP(''); return; }
+    if (!val.trim() || val === '.') { setCostSYP(''); setCostSYPNew(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n)) setCostSYP(String(usdToSyp(n, settings.exchangeRate)));
+    if (!isNaN(n)) {
+      const oldVal = usdToSyp(n, settings.exchangeRate);
+      setCostSYP(String(oldVal));
+      setCostSYPNew(String(Math.floor(oldVal / 100)));
+    }
   }
 
   function handleSellSYPChange(val: string) {
     setSellSYP(val);
-    if (!val.trim() || val === '.') { setSellUSD(''); return; }
+    if (!val.trim() || val === '.') { setSellSYPNew(''); setSellUSD(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n) && settings.exchangeRate > 0) setSellUSD(String(sypToUsd(n, settings.exchangeRate)));
+    if (!isNaN(n)) {
+      setSellSYPNew(String(Math.floor(n / 100)));
+      if (settings.exchangeRate > 0) setSellUSD(String(sypToUsd(n, settings.exchangeRate)));
+    }
+  }
+
+  function handleSellSYPNewChange(val: string) {
+    setSellSYPNew(val);
+    if (!val.trim() || val === '.') { setSellSYP(''); setSellUSD(''); return; }
+    const n = parseFloat(val);
+    if (!isNaN(n)) {
+      const oldVal = Math.round(n * 100);
+      setSellSYP(String(oldVal));
+      if (settings.exchangeRate > 0) setSellUSD(String(sypToUsd(oldVal, settings.exchangeRate)));
+    }
   }
 
   function handleSellUSDChange(val: string) {
     setSellUSD(val);
-    if (!val.trim() || val === '.') { setSellSYP(''); return; }
+    if (!val.trim() || val === '.') { setSellSYP(''); setSellSYPNew(''); return; }
     const n = parseFloat(val);
-    if (!isNaN(n)) setSellSYP(String(usdToSyp(n, settings.exchangeRate)));
+    if (!isNaN(n)) {
+      const oldVal = usdToSyp(n, settings.exchangeRate);
+      setSellSYP(String(oldVal));
+      setSellSYPNew(String(Math.floor(oldVal / 100)));
+    }
   }
 
   function handleClose() {
@@ -285,22 +319,11 @@ export default function EditProductScreen() {
         </FieldSection>
 
         {/* Cost prices */}
-        <View style={styles.twoCol}>
-          <View style={styles.flex}>
-            <FieldSection title="تكلفة ل.س.ق (قديمة)" colors={colors}>
-              <TextInput
-                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
-                value={costSYP}
-                onChangeText={handleCostSYPChange}
-                keyboardType="numeric"
-                textAlign="right"
-                placeholder="0"
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </FieldSection>
-          </View>
-          <View style={styles.flex}>
-            <FieldSection title="تكلفة USD" colors={colors}>
+        <View style={[styles.fieldSection, { gap: 4 }]}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>أسعار التكلفة</Text>
+          <View style={styles.threeCol}>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>USD</Text>
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={costUSD}
@@ -310,27 +333,40 @@ export default function EditProductScreen() {
                 placeholder="0.00"
                 placeholderTextColor={colors.mutedForeground}
               />
-            </FieldSection>
-          </View>
-        </View>
-
-        {/* Selling prices */}
-        <View style={styles.twoCol}>
-          <View style={styles.flex}>
-            <FieldSection title="بيع ل.س.ق (قديمة)" colors={colors}>
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>ل.س.ق</Text>
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
-                value={sellSYP}
-                onChangeText={handleSellSYPChange}
+                value={costSYP}
+                onChangeText={handleCostSYPChange}
                 keyboardType="numeric"
                 textAlign="right"
                 placeholder="0"
                 placeholderTextColor={colors.mutedForeground}
               />
-            </FieldSection>
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>ل.س.ج</Text>
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.primary + '60', backgroundColor: colors.input }]}
+                value={costSYPNew}
+                onChangeText={handleCostSYPNewChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
           </View>
-          <View style={styles.flex}>
-            <FieldSection title="بيع USD" colors={colors}>
+        </View>
+
+        {/* Selling prices */}
+        <View style={[styles.fieldSection, { gap: 4 }]}>
+          <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>أسعار البيع</Text>
+          <View style={styles.threeCol}>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>USD</Text>
               <TextInput
                 style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
                 value={sellUSD}
@@ -340,7 +376,31 @@ export default function EditProductScreen() {
                 placeholder="0.00"
                 placeholderTextColor={colors.mutedForeground}
               />
-            </FieldSection>
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>ل.س.ق</Text>
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.input }]}
+                value={sellSYP}
+                onChangeText={handleSellSYPChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>ل.س.ج</Text>
+              <TextInput
+                style={[styles.input, { color: colors.foreground, borderColor: colors.primary + '60', backgroundColor: colors.input }]}
+                value={sellSYPNew}
+                onChangeText={handleSellSYPNewChange}
+                keyboardType="numeric"
+                textAlign="right"
+                placeholder="0"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
           </View>
         </View>
 
@@ -358,7 +418,7 @@ export default function EditProductScreen() {
               color={profitSYP >= 0 ? '#22C55E' : '#EF4444'}
             />
             <Text style={[styles.profitText, { color: profitSYP >= 0 ? '#22C55E' : '#EF4444' }]}>
-              {profitSYP >= 0 ? 'ربح' : 'خسارة'}: {(Math.abs(profitSYP) / 100).toLocaleString('ar-SY')} ل.س
+              {profitSYP >= 0 ? 'ربح' : 'خسارة'}: {(Math.abs(profitSYP) / 100).toLocaleString('ar-SY')} ل.س.ج
               {costSYPNum > 0 && ` (${Math.abs(marginPct).toFixed(1)}%)`}
             </Text>
           </View>
@@ -476,7 +536,8 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, gap: 12 },
   fieldSection: { gap: 4 },
   fieldLabel: { fontSize: 12, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
-  input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 15, fontFamily: 'Tajawal_500Medium' },
+  subLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginBottom: 2 },
+  input: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 10, fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   categorySelector: {
     height: 48,
     borderRadius: 12,
@@ -490,14 +551,13 @@ const styles = StyleSheet.create({
   selectedCategoryText: { fontSize: 15, fontFamily: 'Tajawal_500Medium', flex: 1, textAlign: 'right' },
   categoryPlaceholder: { fontSize: 14, fontFamily: 'Tajawal_400Regular', flex: 1, textAlign: 'right' },
   textarea: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, fontFamily: 'Tajawal_500Medium', minHeight: 90, textAlignVertical: 'top' },
-  twoCol: { flexDirection: 'row', gap: 10 },
+  threeCol: { flexDirection: 'row', gap: 8 },
   flex: { flex: 1 },
   imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   imageWrapper: { position: 'relative' },
   imageThumb: { width: 78, height: 78 },
   removeImgBtn: { position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   addImageBtn: { width: 78, height: 78, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  // Profit
   profitRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -507,7 +567,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   profitText: { fontSize: 14, fontFamily: 'Tajawal_700Bold', flex: 1, textAlign: 'right' },
-  // Category modal
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '70%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
@@ -515,13 +574,12 @@ const styles = StyleSheet.create({
   categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
   catOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   catOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
-  // Discard modal
-  discardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  discardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   discardBox: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 24 },
-  discardIcon: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12 },
-  discardTitle: { fontSize: 20, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
+  discardIcon: { width: 60, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: 12 },
+  discardTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 8 },
   discardMsg: { fontSize: 14, fontFamily: 'Tajawal_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
   discardBtns: { flexDirection: 'row', gap: 10 },
-  discardBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  discardBtn: { flex: 1, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   discardBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
 });
