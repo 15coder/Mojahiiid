@@ -3,6 +3,8 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
@@ -24,6 +26,7 @@ import { useColors } from '@/hooks/useColors';
 import { InvoiceItem, SavedInvoice, StatsPeriod, useInvoiceStore } from '@/utils/invoiceStore';
 import { formatArabicDateShort, formatPrice, formatPriceCurrency, formatNewSYP } from '@/utils/dateFormatter';
 import { ConfettiEffect } from '@/components/ConfettiEffect';
+import { exportInvoicePdf } from '@/utils/invoicePdf';
 
 type TabId = 'invoice' | 'history' | 'stats';
 type DiscountType = 'pct' | 'fixed';
@@ -117,6 +120,8 @@ export default function CalculatorScreen() {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const isFirstSaveRef = useRef(true);
+  const [exportingPdfId, setExportingPdfId] = useState<string | null>(null);
+  const [showPdfModal, setShowPdfModal] = useState<SavedInvoice | null>(null);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -238,6 +243,22 @@ export default function CalculatorScreen() {
     try {
       await Share.share({ message: buildShareText(inv, settings.exchangeRate) });
     } catch {}
+  }
+
+  async function handlePdfExport(inv: SavedInvoice, mode: 'save' | 'share') {
+    setShowPdfModal(null);
+    setExportingPdfId(inv.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const result = await exportInvoicePdf(inv, settings.appName || 'مجاهد للتجارة', settings.exchangeRate, mode);
+      if (!result.success) {
+        Alert.alert('خطأ', result.error || 'حدث خطأ أثناء إنشاء PDF');
+      }
+    } catch (e: any) {
+      Alert.alert('خطأ', e?.message || 'حدث خطأ أثناء إنشاء PDF');
+    } finally {
+      setExportingPdfId(null);
+    }
   }
 
   function handleDiscountInputChange(val: string) {
@@ -731,7 +752,7 @@ export default function CalculatorScreen() {
                               onPress={() => handleShareInvoice(inv)}
                             >
                               <Ionicons name="share-outline" size={15} color={colors.primary} />
-                              <Text style={[styles.invActionText, { color: colors.primary }]}>مشاركة</Text>
+                              <Text style={[styles.invActionText, { color: colors.primary }]}>نص</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.invActionBtn, { backgroundColor: colors.primary + '15' }]}
@@ -739,6 +760,18 @@ export default function CalculatorScreen() {
                             >
                               <Ionicons name="copy-outline" size={15} color={colors.primary} />
                               <Text style={[styles.invActionText, { color: colors.primary }]}>تكرار</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.invActionBtn, { backgroundColor: exportingPdfId === inv.id ? colors.secondary : '#e8f4fd' }]}
+                              onPress={() => setShowPdfModal(inv)}
+                              disabled={exportingPdfId === inv.id}
+                            >
+                              {exportingPdfId === inv.id ? (
+                                <ActivityIndicator size="small" color={colors.primary} />
+                              ) : (
+                                <Ionicons name="document-text-outline" size={15} color="#1e6fa8" />
+                              )}
+                              <Text style={[styles.invActionText, { color: '#1e6fa8' }]}>PDF</Text>
                             </TouchableOpacity>
                           </View>
                         </Animated.View>
@@ -890,6 +923,62 @@ export default function CalculatorScreen() {
                   <Text style={[styles.modalBtnText, { color: '#fff' }]}>حذف</Text>
                 </TouchableOpacity>
               </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      {/* ── PDF MODAL ────────────────────────────────────── */}
+      <Modal visible={!!showPdfModal} transparent animationType="fade" onRequestClose={() => setShowPdfModal(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowPdfModal(null)}>
+          <Animated.View entering={FadeIn.duration(220)} style={[styles.modalBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Pressable onPress={() => {}}>
+              <View style={[styles.modalIcon, { backgroundColor: '#1e6fa820' }]}>
+                <Ionicons name="document-text-outline" size={28} color="#1e6fa8" />
+              </View>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>
+                تصدير فاتورة #{showPdfModal?.number} كـ PDF
+              </Text>
+              <Text style={[styles.modalMsg, { color: colors.mutedForeground }]}>
+                اختر طريقة التصدير
+              </Text>
+
+              {/* Share PDF */}
+              <TouchableOpacity
+                style={[styles.pdfOptionBtn, { backgroundColor: '#1e6fa815', borderColor: '#1e6fa830', marginBottom: 10 }]}
+                onPress={() => showPdfModal && handlePdfExport(showPdfModal, 'share')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.pdfOptionIcon, { backgroundColor: '#1e6fa820' }]}>
+                  <Ionicons name="share-social-outline" size={22} color="#1e6fa8" />
+                </View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={[styles.pdfOptionTitle, { color: colors.foreground }]}>مشاركة PDF</Text>
+                  <Text style={[styles.pdfOptionSub, { color: colors.mutedForeground }]}>إرسال عبر واتساب أو أي تطبيق</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Save PDF */}
+              <TouchableOpacity
+                style={[styles.pdfOptionBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30', marginBottom: 14 }]}
+                onPress={() => showPdfModal && handlePdfExport(showPdfModal, 'save')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.pdfOptionIcon, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name="download-outline" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={[styles.pdfOptionTitle, { color: colors.foreground }]}>حفظ PDF</Text>
+                  <Text style={[styles.pdfOptionSub, { color: colors.mutedForeground }]}>حفظ في ملفات الجهاز</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtnFull, { backgroundColor: colors.secondary }]}
+                onPress={() => setShowPdfModal(null)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.foreground }]}>إلغاء</Text>
+              </TouchableOpacity>
             </Pressable>
           </Animated.View>
         </Pressable>
@@ -1128,4 +1217,11 @@ const styles = StyleSheet.create({
   modalBtnRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
   modalBtn: { flex: 1, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   modalBtnText: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  pdfOptionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1.5, borderRadius: 14, padding: 14,
+  },
+  pdfOptionIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  pdfOptionTitle: { fontSize: 14, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  pdfOptionSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right', marginTop: 2 },
 });
