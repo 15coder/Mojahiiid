@@ -74,7 +74,6 @@ function RootLayoutNav() {
       <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="product/edit/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="scanner" options={{ presentation: 'fullScreenModal', headerShown: false }} />
-      <Stack.Screen name="calculator" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="contact" options={{ headerShown: false }} />
       <Stack.Screen name="terms" options={{ headerShown: false }} />
     </Stack>

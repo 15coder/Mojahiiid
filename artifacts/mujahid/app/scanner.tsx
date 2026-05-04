@@ -22,7 +22,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
 import { useColors } from '@/hooks/useColors';
-import { invoiceStore } from '@/utils/invoiceStore';
 import { setScanResult } from '@/utils/scanResult';
 
 const CORNER_COLOR = '#4B7BF5';
@@ -52,13 +51,8 @@ export default function ScannerScreen() {
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [showUnknownModal, setShowUnknownModal] = useState(false);
 
-  // Calculator mode — last added product name
-  const [lastAddedName, setLastAddedName] = useState<string | null>(null);
-  const [invoiceCount, setInvoiceCount] = useState(() => invoiceStore.getItems().reduce((s, i) => s + i.qty, 0));
-
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const returnTo = params.returnTo;
-  const isCalculatorMode = params.mode === 'calculator';
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -68,14 +62,8 @@ export default function ScannerScreen() {
       }).catch(() => {});
     }
     startLineAnimation();
-
-    const unsub = invoiceStore.subscribe(() => {
-      setInvoiceCount(invoiceStore.getItems().reduce((s, i) => s + i.qty, 0));
-    });
-
     return () => {
       lineLoop.current?.stop();
-      unsub();
     };
   }, []);
 
@@ -171,34 +159,6 @@ export default function ScannerScreen() {
     playBeep();
     saveRecentBarcode(data);
 
-    if (isCalculatorMode) {
-      setScanned(true);
-      setLastCode(data);
-      const existing = products.find((p) => p.barcode === data);
-      if (existing) {
-        invoiceStore.addItem({
-          productId: existing.id,
-          name: existing.name,
-          sellingPriceSYP: existing.sellingPriceSYP,
-          sellingPriceUSD: existing.sellingPriceUSD,
-        });
-        setLastAddedName(existing.name);
-        setTimeout(() => {
-          setScanned(false);
-          setLastCode(null);
-          setLastAddedName(null);
-        }, 1500);
-      } else {
-        setUnknownBarcode(data);
-        setShowUnknownModal(true);
-        setTimeout(() => {
-          setScanned(false);
-          setLastCode(null);
-        }, 300);
-      }
-      return;
-    }
-
     if (returnTo === 'add') {
       isNavigating.current = true;
       setScanned(true);
@@ -238,11 +198,7 @@ export default function ScannerScreen() {
   function handleAddUnknown() {
     setShowUnknownModal(false);
     setUnknownBarcode(null);
-    if (isCalculatorMode) {
-      router.push({ pathname: '/product/add', params: { barcode: unknownBarcode ?? '' } });
-    } else {
-      router.replace({ pathname: '/product/add', params: { barcode: unknownBarcode ?? '' } });
-    }
+    router.replace({ pathname: '/product/add', params: { barcode: unknownBarcode ?? '' } });
   }
 
   function handleDismissUnknown() {
@@ -269,7 +225,7 @@ export default function ScannerScreen() {
             barcodeScannerSettings={{
               barcodeTypes: ['qr', 'code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code93', 'itf14', 'codabar'],
             }}
-            onBarcodeScanned={scanned && !isCalculatorMode ? undefined : handleBarcodeScanned}
+            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
           />
         </View>
       </GestureDetector>
@@ -281,16 +237,9 @@ export default function ScannerScreen() {
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
 
-          <Text style={styles.topTitle}>
-            {isCalculatorMode ? 'مسح الفاتورة' : 'ماسح الباركود'}
-          </Text>
+          <Text style={styles.topTitle}>ماسح الباركود</Text>
 
           <View style={styles.topRight}>
-            {isCalculatorMode && invoiceCount > 0 && (
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>{invoiceCount}</Text>
-              </View>
-            )}
             <TouchableOpacity
               onPress={() => { setShowManualEntry((v) => !v); setManualBarcode(''); }}
               style={[styles.topBtn, showManualEntry && styles.topBtnActive]}
@@ -303,11 +252,6 @@ export default function ScannerScreen() {
             >
               <Ionicons name={flashOn ? 'flash' : 'flash-outline'} size={22} color={flashOn ? '#FFD700' : '#fff'} />
             </TouchableOpacity>
-            {isCalculatorMode && (
-              <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()}>
-                <Text style={styles.doneBtnText}>تم ✓</Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
 
@@ -336,13 +280,7 @@ export default function ScannerScreen() {
           /* Frame area */
           <View style={styles.scanFrame}>
             <Text style={styles.scanLabel}>
-              {isCalculatorMode
-                ? lastAddedName
-                  ? `✓ أُضيف: ${lastAddedName}`
-                  : 'وجّه الكاميرا نحو باركود المنتج'
-                : scanned
-                ? 'جاري المعالجة...'
-                : 'وجّه الكاميرا نحو الباركود'}
+              {scanned ? 'جاري المعالجة...' : 'وجّه الكاميرا نحو الباركود'}
             </Text>
 
             <View style={[styles.scanAreaContainer, { width: FRAME_W, height: FRAME_H }]}>
@@ -371,7 +309,7 @@ export default function ScannerScreen() {
               </View>
             )}
 
-            {!isCalculatorMode && scanned && !showUnknownModal && (
+            {scanned && !showUnknownModal && (
               <TouchableOpacity
                 style={styles.rescanBtn}
                 onPress={() => { setScanned(false); setLastCode(null); isNavigating.current = false; }}
@@ -379,13 +317,6 @@ export default function ScannerScreen() {
                 <Ionicons name="scan-outline" size={16} color="#fff" />
                 <Text style={styles.rescanText}>مسح مجدداً</Text>
               </TouchableOpacity>
-            )}
-
-            {isCalculatorMode && !scanned && (
-              <View style={styles.calcHintRow}>
-                <Ionicons name="infinite-outline" size={18} color="rgba(255,255,255,0.8)" />
-                <Text style={styles.calcHint}>الماسح يعمل باستمرار — أغلق عند الانتهاء</Text>
-              </View>
             )}
           </View>
         )}

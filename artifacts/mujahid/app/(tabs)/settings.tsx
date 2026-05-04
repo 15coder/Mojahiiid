@@ -31,7 +31,6 @@ import { useColors } from '@/hooks/useColors';
 import { THEMES, getThemeById } from '@/constants/themes';
 import { Category, DEFAULT_CATEGORIES } from '@/types/category';
 import { formatArabicDateShort, getBackupFileName } from '@/utils/dateFormatter';
-import { useInvoiceStore } from '@/utils/invoiceStore';
 
 const CAT_ICON_OPTIONS = [
   'nutrition-outline', 'leaf-outline', 'cafe-outline', 'flame-outline',
@@ -77,8 +76,7 @@ type ActiveModal =
   | 'deleteCatStep1'
   | 'deleteCatStep2'
   | 'restoreDefaultCats'
-  | 'confirmImport'
-  | 'backupChoice';
+  | 'confirmImport';
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -87,8 +85,6 @@ export default function SettingsScreen() {
   const { products, exportData, importData, updateAllProductsExchangeRate, moveCategoryProducts } = useProducts();
   const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, resetCategories } = useCategories();
   const { showToast } = useToast();
-  const { savedInvoices } = useInvoiceStore();
-
   const [rateInput, setRateInput] = useState(String(settings.exchangeRate));
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -144,10 +140,10 @@ export default function SettingsScreen() {
       showToast({ message: 'التصدير غير متاح على الويب', type: 'warning' });
       return;
     }
-    setActiveModal('backupChoice');
+    handleExport();
   }
 
-  async function handleExport(includeInvoices: boolean) {
+  async function handleExport() {
     setActiveModal('none');
     try {
       setIsExporting(true);
@@ -161,10 +157,6 @@ export default function SettingsScreen() {
         exportDate: now,
         appName: settings.appName,
       };
-      if (includeInvoices) {
-        fullBackup.invoices = savedInvoices;
-        fullBackup.invoicesCount = savedInvoices.length;
-      }
       const json = JSON.stringify(fullBackup, null, 2);
 
       await ensureBackupDir();
@@ -180,10 +172,7 @@ export default function SettingsScreen() {
         showToast({ message: `تم حفظ النسخة في: Nidaa/Backups/${fileName}`, type: 'success' });
       }
       await updateSettings({ lastBackupDate: now });
-      const msg = includeInvoices
-        ? `تم تصدير ${products.length} منتج و${savedInvoices.length} فاتورة`
-        : `تم تصدير ${products.length} منتج (بدون فواتير)`;
-      showToast({ message: msg, type: 'success' });
+      showToast({ message: `تم تصدير ${products.length} منتج و${categories.length} قسم`, type: 'success' });
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل التصدير', type: 'error' });
     } finally {
@@ -755,11 +744,6 @@ export default function SettingsScreen() {
             <Text style={[styles.backupSummaryNum, { color: colors.foreground }]}>{categories.length}</Text>
             <Text style={[styles.backupSummaryLabel, { color: colors.mutedForeground }]}>قسم</Text>
           </View>
-          <View style={[styles.backupSummaryDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.backupSummaryItem}>
-            <Text style={[styles.backupSummaryNum, { color: colors.primary }]}>{savedInvoices.length}</Text>
-            <Text style={[styles.backupSummaryLabel, { color: colors.mutedForeground }]}>فاتورة</Text>
-          </View>
         </View>
 
         {/* Actions */}
@@ -1078,54 +1062,6 @@ export default function SettingsScreen() {
         confirmDestructive
       />
 
-      {/* ─── Backup Choice Modal ─── */}
-      <Modal transparent animationType="fade" visible={activeModal === 'backupChoice'} onRequestClose={() => setActiveModal('none')}>
-        <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setActiveModal('none')}>
-          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-            <View style={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-              <Text style={[styles.modalTitle, { color: colors.foreground }]}>اختر نوع النسخة الاحتياطية</Text>
-              <TouchableOpacity
-                style={[styles.backupChoiceBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}
-                onPress={() => handleExport(true)}
-                activeOpacity={0.8}
-              >
-                <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>مع الفواتير</Text>
-                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
-                    {products.length} منتج + {savedInvoices.length} فاتورة
-                  </Text>
-                </View>
-                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <Ionicons name="receipt-outline" size={22} color={colors.primary} />
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.backupChoiceBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                onPress={() => handleExport(false)}
-                activeOpacity={0.8}
-              >
-                <View style={{ alignItems: 'flex-end', flex: 1 }}>
-                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>بدون فواتير</Text>
-                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
-                    {products.length} منتج و{categories.length} قسم فقط
-                  </Text>
-                </View>
-                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.border }]}>
-                  <Ionicons name="archive-outline" size={22} color={colors.silver} />
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.backupCancelBtn, { borderColor: colors.border }]}
-                onPress={() => setActiveModal('none')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.backupCancelText, { color: colors.mutedForeground }]}>إلغاء</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       {/* ─── Theme Modal ─── */}
       <BottomSheetModal
