@@ -23,7 +23,7 @@ import { PriceTrendIcon } from '@/components/PriceTrendIcon';
 import { useProducts } from '@/context/ProductsContext';
 import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
-import { formatArabicDate, formatPrice } from '@/utils/dateFormatter';
+import { formatArabicDate, formatPrice, formatNewSYP } from '@/utils/dateFormatter';
 import { getTrend } from '@/utils/priceUtils';
 
 const { width } = Dimensions.get('window');
@@ -308,6 +308,9 @@ function PriceCard({
       <Text style={[styles.bigPrice, { color: highlight ? colors.primary : colors.foreground }]}>
         {formatPrice(priceSYP, 'SYP')}
       </Text>
+      <Text style={[styles.newSypPrice, { color: colors.mutedForeground }]}>
+        {formatNewSYP(priceSYP)}
+      </Text>
       <Text style={[styles.usdPrice, { color: colors.silver }]}>
         {formatPrice(priceUSD, 'USD')}
       </Text>
@@ -351,7 +354,8 @@ const styles = StyleSheet.create({
   trendRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   prevPrice: { fontSize: 12, fontFamily: 'Tajawal_400Regular', textDecorationLine: 'line-through' },
   bigPrice: { fontSize: 28, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
-  usdPrice: { fontSize: 16, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  newSypPrice: { fontSize: 16, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  usdPrice: { fontSize: 15, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   notesCard: { borderRadius: 16, padding: 14, borderWidth: 1, gap: 8 },
   notesHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'flex-end' },
   notesTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },

@@ -31,6 +31,7 @@ import { useColors } from '@/hooks/useColors';
 import { THEMES, getThemeById } from '@/constants/themes';
 import { Category, DEFAULT_CATEGORIES } from '@/types/category';
 import { formatArabicDateShort, getBackupFileName } from '@/utils/dateFormatter';
+import { useInvoiceStore } from '@/utils/invoiceStore';
 
 const CAT_ICON_OPTIONS = [
   'nutrition-outline', 'leaf-outline', 'cafe-outline', 'flame-outline',
@@ -76,7 +77,8 @@ type ActiveModal =
   | 'deleteCatStep1'
   | 'deleteCatStep2'
   | 'restoreDefaultCats'
-  | 'confirmImport';
+  | 'confirmImport'
+  | 'backupChoice';
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -85,6 +87,7 @@ export default function SettingsScreen() {
   const { products, exportData, importData, updateAllProductsExchangeRate, moveCategoryProducts } = useProducts();
   const { categories, addCategory, updateCategory, deleteCategory, toggleCategoryVisibility, resetCategories } = useCategories();
   const { showToast } = useToast();
+  const { savedInvoices } = useInvoiceStore();
 
   const [rateInput, setRateInput] = useState(String(settings.exchangeRate));
   const [isExporting, setIsExporting] = useState(false);
@@ -136,23 +139,32 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
-  async function handleExport() {
+  function openBackupChoice() {
     if (Platform.OS === 'web') {
       showToast({ message: 'التصدير غير متاح على الويب', type: 'warning' });
       return;
     }
+    setActiveModal('backupChoice');
+  }
+
+  async function handleExport(includeInvoices: boolean) {
+    setActiveModal('none');
     try {
       setIsExporting(true);
       const productsJson = await exportData();
       const productsData = JSON.parse(productsJson);
       const now = new Date().toISOString();
-      const fullBackup = {
+      const fullBackup: Record<string, any> = {
         ...productsData,
         version: 2,
         categories,
         exportDate: now,
         appName: settings.appName,
       };
+      if (includeInvoices) {
+        fullBackup.invoices = savedInvoices;
+        fullBackup.invoicesCount = savedInvoices.length;
+      }
       const json = JSON.stringify(fullBackup, null, 2);
 
       await ensureBackupDir();
@@ -168,7 +180,10 @@ export default function SettingsScreen() {
         showToast({ message: `تم حفظ النسخة في: Nidaa/Backups/${fileName}`, type: 'success' });
       }
       await updateSettings({ lastBackupDate: now });
-      showToast({ message: 'تم إنشاء النسخة الاحتياطية بنجاح', type: 'success' });
+      const msg = includeInvoices
+        ? `تم تصدير ${products.length} منتج و${savedInvoices.length} فاتورة`
+        : `تم تصدير ${products.length} منتج (بدون فواتير)`;
+      showToast({ message: msg, type: 'success' });
     } catch (e: any) {
       showToast({ message: e?.message || 'فشل التصدير', type: 'error' });
     } finally {
@@ -501,7 +516,7 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.rateBadge, { backgroundColor: colors.primary + '15', marginTop: 6 }]}>
             <Text style={[styles.rateNote, { color: colors.primary }]}>
-              1 USD = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س جديدة
+              1$ = {Number(settings.exchangeRate).toLocaleString('ar-SY')} ل.س = {(Number(settings.exchangeRate) * 100).toLocaleString('ar-SY')} ل.س.ق
             </Text>
             <Ionicons name="swap-horizontal-outline" size={14} color={colors.primary} />
           </View>
@@ -723,13 +738,26 @@ export default function SettingsScreen() {
             </Text>
           </View>
 
-          <Text style={[styles.label, { color: colors.mutedForeground }]}>
-            تصدير أو استيراد {products.length} منتج و{categories.length} قسم
-          </Text>
+          <View style={[styles.backupStatsRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <View style={styles.backupStatItem}>
+              <Text style={[styles.backupStatNum, { color: colors.foreground }]}>{products.length}</Text>
+              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>منتج</Text>
+            </View>
+            <View style={[styles.backupStatDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.backupStatItem}>
+              <Text style={[styles.backupStatNum, { color: colors.foreground }]}>{categories.length}</Text>
+              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>قسم</Text>
+            </View>
+            <View style={[styles.backupStatDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.backupStatItem}>
+              <Text style={[styles.backupStatNum, { color: colors.primary }]}>{savedInvoices.length}</Text>
+              <Text style={[styles.backupStatLabel, { color: colors.mutedForeground }]}>فاتورة</Text>
+            </View>
+          </View>
           <View style={styles.backupBtns}>
             <TouchableOpacity
               style={[styles.backupBtn, { backgroundColor: colors.primary, flex: 1 }]}
-              onPress={handleExport}
+              onPress={openBackupChoice}
               disabled={isExporting}
               activeOpacity={0.8}
             >
@@ -1020,6 +1048,55 @@ export default function SettingsScreen() {
         message="سيتم دمج المنتجات والأقسام من الملف المحدد مع البيانات الحالية. هل تريد المتابعة؟"
         confirmLabel="استيراد"
       />
+
+      {/* ─── Backup Choice Modal ─── */}
+      <Modal transparent animationType="fade" visible={activeModal === 'backupChoice'} onRequestClose={() => setActiveModal('none')}>
+        <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setActiveModal('none')}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>اختر نوع النسخة الاحتياطية</Text>
+              <TouchableOpacity
+                style={[styles.backupChoiceBtn, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}
+                onPress={() => handleExport(true)}
+                activeOpacity={0.8}
+              >
+                <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>مع الفواتير</Text>
+                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
+                    {products.length} منتج + {savedInvoices.length} فاتورة
+                  </Text>
+                </View>
+                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="receipt-outline" size={22} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.backupChoiceBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                onPress={() => handleExport(false)}
+                activeOpacity={0.8}
+              >
+                <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>بدون فواتير</Text>
+                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
+                    {products.length} منتج و{categories.length} قسم فقط
+                  </Text>
+                </View>
+                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.border }]}>
+                  <Ionicons name="archive-outline" size={22} color={colors.silver} />
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.backupCancelBtn, { borderColor: colors.border }]}
+                onPress={() => setActiveModal('none')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.backupCancelText, { color: colors.mutedForeground }]}>إلغاء</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ─── Theme Modal ─── */}
       <BottomSheetModal
@@ -1446,9 +1523,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1,
   },
   backupPathText: { flex: 1, fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  backupStatsRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    borderRadius: 10, borderWidth: 1, paddingVertical: 10,
+  },
+  backupStatItem: { alignItems: 'center', flex: 1 },
+  backupStatNum: { fontSize: 20, fontFamily: 'Tajawal_700Bold' },
+  backupStatLabel: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
+  backupStatDivider: { width: 1, height: 30 },
   backupBtns: { flexDirection: 'row', gap: 10 },
   backupBtn: { height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12 },
   backupBtnText: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
+  backupChoiceBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 10,
+  },
+  backupChoiceTitle: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  backupChoiceSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', marginTop: 2 },
+  backupChoiceIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  backupCancelBtn: { height: 46, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  backupCancelText: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   infoValue: { fontSize: 14, fontFamily: 'Tajawal_500Medium' },
   infoLabel: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },

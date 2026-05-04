@@ -18,7 +18,7 @@ import { Pressable } from 'react-native';
 import { useCategories } from '@/context/CategoriesContext';
 import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
-import { formatArabicDate, formatPrice } from '@/utils/dateFormatter';
+import { formatArabicDate, formatPrice, formatNewSYP } from '@/utils/dateFormatter';
 import { getTrend } from '@/utils/priceUtils';
 import { PlaceholderImage } from './PlaceholderImage';
 import { PriceTrendIcon } from './PriceTrendIcon';
@@ -85,7 +85,7 @@ function ProductCardInner({ product, onPress, onLongPress, grid, customerViewMod
           styles.gridCard,
           {
             backgroundColor: colors.card,
-            borderColor: colors.border,
+            borderColor: categoryBorderColor !== 'transparent' ? categoryBorderColor + '55' : colors.border,
             borderTopWidth: 3,
             borderTopColor: categoryBorderColor,
           },
@@ -94,39 +94,55 @@ function ProductCardInner({ product, onPress, onLongPress, grid, customerViewMod
       >
         {priceUpdatedRecently && (
           <View style={styles.updatedBadge}>
-            <Text style={styles.updatedBadgeText}>سعر محدث</Text>
+            <Text style={styles.updatedBadgeText}>جديد</Text>
           </View>
         )}
+
         <View style={styles.gridImageWrap}>
           {hasImage ? (
             <Image
               source={{ uri: product.imagePaths[0] }}
-              style={[styles.gridImage, { borderRadius: colors.radius * 0.5 }]}
+              style={[styles.gridImage, { borderRadius: colors.radius * 0.6 }]}
               contentFit="cover"
             />
           ) : (
-            <PlaceholderImage size={60} categoryIcon={category?.icon} categoryColor={category?.color} />
+            <PlaceholderImage size={68} categoryIcon={category?.icon} categoryColor={category?.color} />
           )}
         </View>
+
         <Text style={[styles.gridName, { color: colors.foreground }]} numberOfLines={2}>
           {product.name}
         </Text>
+
         {category && (
-          <View style={[styles.categoryBadge, { backgroundColor: category.color + '18' }]}>
-            <Ionicons name={category.icon as any} size={10} color={category.color} />
-            <Text style={[styles.categoryText, { color: category.color }]}>{category.name}</Text>
+          <View style={[styles.gridCategoryBadge, { backgroundColor: category.color + '18' }]}>
+            <Ionicons name={category.icon as any} size={9} color={category.color} />
+            <Text style={[styles.gridCategoryText, { color: category.color }]} numberOfLines={1}>{category.name}</Text>
           </View>
         )}
-        <View style={styles.gridPriceRow}>
-          <PriceTrendIcon trend={sellingTrend} />
-          <Text style={[styles.gridPrice, { color: SELL_COLOR }]} numberOfLines={1}>
-            {formatPrice(product.sellingPriceSYP, 'SYP')}
+
+        <View style={[styles.gridPriceBox, { backgroundColor: SELL_COLOR + '12', borderColor: SELL_COLOR + '25' }]}>
+          <View style={styles.gridPriceRow}>
+            <PriceTrendIcon trend={sellingTrend} />
+            <Text style={[styles.gridPriceOld, { color: SELL_COLOR }]} numberOfLines={1}>
+              {formatPrice(product.sellingPriceSYP, 'SYP')}
+            </Text>
+          </View>
+          <Text style={[styles.gridPriceNew, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {formatNewSYP(product.sellingPriceSYP)}
+          </Text>
+          <Text style={[styles.gridPriceUsd, { color: colors.silver }]} numberOfLines={1}>
+            {formatPrice(product.sellingPriceUSD, 'USD')}
           </Text>
         </View>
+
         {!customerViewMode && product.costSYP > 0 && (
-          <Text style={[styles.gridCost, { color: COST_COLOR }]} numberOfLines={1}>
-            التكلفة: {formatPrice(product.costSYP, 'SYP')}
-          </Text>
+          <View style={[styles.gridCostBox, { backgroundColor: colors.secondary }]}>
+            <Text style={[styles.gridCostLabel, { color: colors.mutedForeground }]}>التكلفة: </Text>
+            <Text style={[styles.gridCostVal, { color: COST_COLOR }]} numberOfLines={1}>
+              {formatNewSYP(product.costSYP)}
+            </Text>
+          </View>
         )}
       </AnimatedPressable>
     );
@@ -202,6 +218,9 @@ function ProductCardInner({ product, onPress, onLongPress, grid, customerViewMod
                     {formatPrice(product.costSYP, 'SYP')}
                   </Text>
                 </View>
+                <Text style={[styles.priceNew, { color: colors.mutedForeground }]}>
+                  {formatNewSYP(product.costSYP)}
+                </Text>
                 <Text style={[styles.priceUsd, { color: colors.silver }]}>
                   {formatPrice(product.costUSD, 'USD')}
                 </Text>
@@ -219,6 +238,9 @@ function ProductCardInner({ product, onPress, onLongPress, grid, customerViewMod
                 {formatPrice(product.sellingPriceSYP, 'SYP')}
               </Text>
             </View>
+            <Text style={[styles.priceNew, { color: colors.mutedForeground }]}>
+              {formatNewSYP(product.sellingPriceSYP)}
+            </Text>
             <Text style={[styles.priceUsd, { color: colors.silver }]}>
               {formatPrice(product.sellingPriceUSD, 'USD')}
             </Text>
@@ -269,7 +291,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    gap: 6,
+    gap: 5,
     alignItems: 'flex-end',
   },
   nameRow: {
@@ -335,6 +357,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Tajawal_700Bold',
     textAlign: 'right',
   },
+  priceNew: {
+    fontSize: 11,
+    fontFamily: 'Tajawal_500Medium',
+    textAlign: 'right',
+  },
   priceUsd: {
     fontSize: 11,
     fontFamily: 'Tajawal_400Regular',
@@ -342,7 +369,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     width: 1,
-    height: 40,
+    height: 48,
   },
   timestamp: {
     fontSize: 10,
@@ -352,11 +379,11 @@ const styles = StyleSheet.create({
   },
   updatedBadge: {
     position: 'absolute',
-    top: 8,
-    left: 8,
+    top: 6,
+    left: 6,
     backgroundColor: '#F59E0B',
-    borderRadius: 8,
-    paddingHorizontal: 6,
+    borderRadius: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     zIndex: 1,
   },
@@ -371,48 +398,94 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontFamily: 'Tajawal_700Bold',
   },
+
   gridCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 12,
-    gap: 6,
+    padding: 10,
+    gap: 7,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
     position: 'relative',
     overflow: 'hidden',
+    flex: 1,
   },
   gridImageWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
   },
   gridImage: {
-    width: 64,
-    height: 64,
+    width: 68,
+    height: 68,
   },
   gridName: {
     fontSize: 13,
     fontFamily: 'Tajawal_700Bold',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
+    width: '100%',
   },
-  gridPrice: {
-    fontSize: 13,
-    fontFamily: 'Tajawal_700Bold',
-    textAlign: 'center',
+  gridCategoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  gridCategoryText: {
+    fontSize: 9,
+    fontFamily: 'Tajawal_500Medium',
+  },
+  gridPriceBox: {
+    width: '100%',
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    gap: 2,
+    alignItems: 'center',
   },
   gridPriceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 3,
     justifyContent: 'center',
   },
-  gridCost: {
+  gridPriceOld: {
+    fontSize: 13,
+    fontFamily: 'Tajawal_700Bold',
+    textAlign: 'center',
+  },
+  gridPriceNew: {
+    fontSize: 11,
+    fontFamily: 'Tajawal_500Medium',
+    textAlign: 'center',
+  },
+  gridPriceUsd: {
     fontSize: 10,
     fontFamily: 'Tajawal_400Regular',
     textAlign: 'center',
+  },
+  gridCostBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 2,
+  },
+  gridCostLabel: {
+    fontSize: 9,
+    fontFamily: 'Tajawal_400Regular',
+  },
+  gridCostVal: {
+    fontSize: 10,
+    fontFamily: 'Tajawal_700Bold',
   },
 });

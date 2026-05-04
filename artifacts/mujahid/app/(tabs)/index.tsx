@@ -464,7 +464,10 @@ export default function ProductsScreen() {
                           {p.name}
                         </Text>
                         <Text style={[styles.recentPrice, { color: '#22C55E' }]} numberOfLines={1}>
-                          {(p.sellingPriceSYP / 100).toLocaleString('ar-SY')} ل.س
+                          {new Intl.NumberFormat('ar-SY').format(p.sellingPriceSYP)} ل.س.ق
+                        </Text>
+                        <Text style={[styles.recentPriceNew, { color: '#16A34A' }]} numberOfLines={1}>
+                          {new Intl.NumberFormat('ar-SY').format(Math.floor(p.sellingPriceSYP / 100))} ل.س
                         </Text>
                       </Pressable>
                     );
@@ -621,6 +624,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   recentName: { fontSize: 12, fontFamily: 'Tajawal_700Bold', textAlign: 'right', lineHeight: 17 },
-  recentPrice: { fontSize: 11, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
+  recentPrice: { fontSize: 11, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  recentPriceNew: { fontSize: 10, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   recentDivider: { height: 1, marginTop: 10 },
 });

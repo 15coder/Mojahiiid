@@ -67,7 +67,16 @@ export function formatPrice(value: number, currency: 'SYP' | 'USD'): string {
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value / 100) + ' ل.س'
+    }).format(value) + ' ل.س.ق'
+  );
+}
+
+export function formatNewSYP(value: number): string {
+  return (
+    new Intl.NumberFormat('ar-SY', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(Math.floor(value / 100)) + ' ل.س'
   );
 }
 
@@ -95,6 +104,6 @@ export function formatPriceCurrency(
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value / 100) + ' ل.س'
+    }).format(Math.floor(value / 100)) + ' ل.س'
   );
 }

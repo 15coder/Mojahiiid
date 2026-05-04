@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCategories } from '@/context/CategoriesContext';
 import { useColors } from '@/hooks/useColors';
 import { Product } from '@/types/product';
-import { formatPrice } from '@/utils/dateFormatter';
+import { formatPrice, formatNewSYP } from '@/utils/dateFormatter';
 import { PlaceholderImage } from './PlaceholderImage';
 
 interface Props {
@@ -81,7 +81,6 @@ export function ProductPreviewSheet({ product, visible, onClose, customerViewMod
         >
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-          {/* Image + Category strip */}
           {category && (
             <View style={[styles.categoryStrip, { backgroundColor: category.color + '18', borderColor: category.color + '30' }]}>
               <Ionicons name={category.icon as any} size={13} color={category.color} />
@@ -128,6 +127,9 @@ export function ProductPreviewSheet({ product, visible, onClose, customerViewMod
                   <Text style={[styles.priceValue, { color: colors.warning ?? '#F59E0B' }]}>
                     {formatPrice(product.costSYP, 'SYP')}
                   </Text>
+                  <Text style={[styles.priceNew, { color: colors.mutedForeground }]}>
+                    {formatNewSYP(product.costSYP)}
+                  </Text>
                   <Text style={[styles.priceUsd, { color: colors.silver }]}>
                     {formatPrice(product.costUSD, 'USD')}
                   </Text>
@@ -140,6 +142,9 @@ export function ProductPreviewSheet({ product, visible, onClose, customerViewMod
               <Text style={[styles.priceValue, { color: '#22C55E' }]}>
                 {formatPrice(product.sellingPriceSYP, 'SYP')}
               </Text>
+              <Text style={[styles.priceNew, { color: colors.mutedForeground }]}>
+                {formatNewSYP(product.sellingPriceSYP)}
+              </Text>
               <Text style={[styles.priceUsd, { color: colors.silver }]}>
                 {formatPrice(product.sellingPriceUSD, 'USD')}
               </Text>
@@ -151,6 +156,9 @@ export function ProductPreviewSheet({ product, visible, onClose, customerViewMod
                   <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>الربح</Text>
                   <Text style={[styles.priceValue, { color: profit >= 0 ? '#22C55E' : colors.destructive }]}>
                     {formatPrice(Math.abs(profit), 'SYP')}
+                  </Text>
+                  <Text style={[styles.priceNew, { color: profit >= 0 ? '#22C55E' : colors.destructive }]}>
+                    {formatNewSYP(Math.abs(profit))}
                   </Text>
                   <Text style={[styles.priceUsd, { color: profit >= 0 ? '#22C55E' : colors.destructive }]}>
                     {profitPct}%
@@ -286,8 +294,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Tajawal_400Regular',
   },
   priceValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Tajawal_700Bold',
+    textAlign: 'center',
+  },
+  priceNew: {
+    fontSize: 11,
+    fontFamily: 'Tajawal_500Medium',
     textAlign: 'center',
   },
   priceUsd: {
@@ -296,7 +309,7 @@ const styles = StyleSheet.create({
   },
   priceDivider: {
     width: 1,
-    height: 40,
+    height: 52,
   },
   actions: {
     flexDirection: 'row',

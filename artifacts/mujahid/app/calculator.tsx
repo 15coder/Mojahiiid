@@ -19,9 +19,10 @@ import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut } from 'react-native-re
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
+import { useSettings } from '@/context/SettingsContext';
 import { useColors } from '@/hooks/useColors';
 import { InvoiceItem, SavedInvoice, StatsPeriod, useInvoiceStore } from '@/utils/invoiceStore';
-import { formatArabicDateShort, formatPrice, formatPriceCurrency } from '@/utils/dateFormatter';
+import { formatArabicDateShort, formatPrice, formatPriceCurrency, formatNewSYP } from '@/utils/dateFormatter';
 import { ConfettiEffect } from '@/components/ConfettiEffect';
 
 type TabId = 'invoice' | 'history' | 'stats';
@@ -60,6 +61,7 @@ export default function CalculatorScreen() {
   const insets = useSafeAreaInsets();
   const { products } = useProducts();
   const displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD' = 'SYP_NEW';
+  const { settings } = useSettings();
 
   const {
     activeItems,
@@ -532,18 +534,27 @@ export default function CalculatorScreen() {
                 <View style={styles.totalAmounts}>
                   {hasDiscount && (
                     <Text style={[styles.subtotalLine, { color: colors.mutedForeground }]}>
-                      الجزئي: <Text style={{ textDecorationLine: 'line-through' }}>{formatPriceCurrency(totalSYP, displayCurrency)}</Text>
+                      الجزئي: <Text style={{ textDecorationLine: 'line-through' }}>{formatPriceCurrency(totalSYP, 'SYP_OLD')}</Text>
                     </Text>
                   )}
                   {hasDiscount && (
                     <Text style={[styles.discountLine, { color: colors.destructive }]}>
-                      الخصم: -{formatPriceCurrency(discountAmountSYP, displayCurrency)}
+                      الخصم: -{formatPriceCurrency(discountAmountSYP, 'SYP_OLD')}
                     </Text>
                   )}
                   <Text style={[styles.totalSYP, { color: colors.primary }]}>
-                    {formatPriceCurrency(finalTotalSYP, displayCurrency)}
+                    {formatPriceCurrency(finalTotalSYP, 'SYP_OLD')}
+                  </Text>
+                  <Text style={[styles.totalSYPNew, { color: colors.mutedForeground }]}>
+                    {formatNewSYP(finalTotalSYP)}
                   </Text>
                   <Text style={[styles.totalUSD, { color: colors.silver }]}>{formatPrice(finalTotalUSD, 'USD')}</Text>
+                  <View style={[styles.rateFooterBadge, { backgroundColor: colors.secondary }]}>
+                    <Ionicons name="swap-horizontal-outline" size={10} color={colors.silver} />
+                    <Text style={[styles.rateFooterText, { color: colors.silver }]}>
+                      1$ = {new Intl.NumberFormat('ar-SY').format(settings.exchangeRate)} ل.س
+                    </Text>
+                  </View>
                 </View>
                 <View style={styles.totalRight}>
                   <View style={[styles.totalCountBadge, { backgroundColor: colors.primary + '15' }]}>
@@ -627,7 +638,10 @@ export default function CalculatorScreen() {
                             {invDisplayName}
                           </Text>
                           <Text style={[styles.savedInvoiceTotal, { color: colors.primary }]}>
-                            {formatPriceCurrency(displayTotal, displayCurrency)}
+                            {formatPriceCurrency(displayTotal, 'SYP_OLD')}
+                          </Text>
+                          <Text style={[styles.savedInvoiceTotalNew, { color: colors.mutedForeground }]}>
+                            {formatNewSYP(displayTotal)}
                           </Text>
                           <Text style={[styles.savedInvoiceDate, { color: colors.mutedForeground }]}>
                             {formatArabicDateShort(inv.createdAt)} — {inv.items.length} منتج
@@ -669,12 +683,25 @@ export default function CalculatorScreen() {
                             </View>
                           )}
                           <View style={[styles.savedInvoiceTotalsRow, { borderTopColor: colors.border }]}>
-                            <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
-                              {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
-                            </Text>
-                            <Text style={[styles.savedInvTotalSYP, { color: colors.primary }]}>
-                              الإجمالي: {formatPriceCurrency(displayTotal, displayCurrency)}
-                            </Text>
+                            <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                              <Text style={[styles.savedInvTotalUSD, { color: colors.silver }]}>
+                                {formatPrice(inv.finalTotalUSD ?? inv.totalUSD, 'USD')}
+                              </Text>
+                              <View style={[styles.savedInvRateBadge, { backgroundColor: colors.secondary }]}>
+                                <Ionicons name="swap-horizontal-outline" size={10} color={colors.silver} />
+                                <Text style={[styles.savedInvRateText, { color: colors.silver }]}>
+                                  1$ = {new Intl.NumberFormat('ar-SY').format(settings.exchangeRate)} ل.س
+                                </Text>
+                              </View>
+                            </View>
+                            <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                              <Text style={[styles.savedInvTotalSYP, { color: colors.primary }]}>
+                                الإجمالي: {formatPriceCurrency(displayTotal, 'SYP_OLD')}
+                              </Text>
+                              <Text style={[styles.savedInvTotalNewSYP, { color: colors.mutedForeground }]}>
+                                {formatNewSYP(displayTotal)}
+                              </Text>
+                            </View>
                           </View>
 
                           {/* Invoice actions */}
@@ -1003,7 +1030,10 @@ const styles = StyleSheet.create({
   subtotalLine: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   discountLine: { fontSize: 11, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
   totalSYP: { fontSize: 22, fontFamily: 'Tajawal_700Bold', textAlign: 'right' },
+  totalSYPNew: { fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
   totalUSD: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
+  rateFooterBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 2 },
+  rateFooterText: { fontSize: 10, fontFamily: 'Tajawal_400Regular' },
   totalRight: { alignItems: 'flex-end', gap: 6 },
   totalCountBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
   totalCount: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
@@ -1031,7 +1061,8 @@ const styles = StyleSheet.create({
   invNumberText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   savedInvoiceInfo: { flex: 1, alignItems: 'flex-end', gap: 2 },
   savedInvoiceName: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
-  savedInvoiceTotal: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
+  savedInvoiceTotal: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  savedInvoiceTotalNew: { fontSize: 11, fontFamily: 'Tajawal_500Medium' },
   savedInvoiceDate: { fontSize: 11, fontFamily: 'Tajawal_400Regular' },
   savedInvoiceItems: { borderTopWidth: 1 },
   invNoteRow: {
@@ -1047,7 +1078,10 @@ const styles = StyleSheet.create({
   discountSummaryText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   savedInvoiceTotalsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1 },
   savedInvTotalUSD: { fontSize: 13, fontFamily: 'Tajawal_400Regular' },
-  savedInvTotalSYP: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  savedInvTotalSYP: { fontSize: 14, fontFamily: 'Tajawal_700Bold' },
+  savedInvTotalNewSYP: { fontSize: 11, fontFamily: 'Tajawal_500Medium' },
+  savedInvRateBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  savedInvRateText: { fontSize: 10, fontFamily: 'Tajawal_400Regular' },
   invActionsRow: { flexDirection: 'row', gap: 8, padding: 10, borderTopWidth: 1 },
   invActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 10 },
   invActionText: { fontSize: 12, fontFamily: 'Tajawal_700Bold' },
