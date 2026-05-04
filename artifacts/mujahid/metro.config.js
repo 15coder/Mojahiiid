@@ -13,4 +13,8 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, "node_modules"),
 ];
 
+config.resolver.blockList = [
+  /node_modules\/.*\/node_modules\/drizzle-orm_tmp_.*/,
+];
+
 module.exports = config;
