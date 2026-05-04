@@ -30,7 +30,8 @@ type DiscountType = 'pct' | 'fixed';
 
 const BRANDING_TEXT = '🏪 مصدرة عن تطبيق "مجاهد للتجارة"\n💻 برمجة وتطوير: نداء الرحمن عبّود';
 
-function buildShareText(inv: SavedInvoice, displayCurrency: 'SYP_NEW' | 'SYP_OLD' | 'USD'): string {
+function buildShareText(inv: SavedInvoice, exchangeRate: number): string {
+  const fmt = (v: number) => new Intl.NumberFormat('ar-SY', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
   const lines: string[] = [];
   lines.push(`🧾 فاتورة رقم ${inv.number}`);
   if (inv.name) lines.push(`📋 ${inv.name}`);
@@ -38,18 +39,30 @@ function buildShareText(inv: SavedInvoice, displayCurrency: 'SYP_NEW' | 'SYP_OLD
   if (!inv.name && !inv.note) lines.push('📋 فاتورة بدون اسم');
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   inv.items.forEach((item) => {
-    const sub = item.sellingPriceSYP * item.qty;
-    lines.push(`• ${item.name} × ${item.qty} = ${formatPriceCurrency(sub, displayCurrency)}`);
+    const subOld = item.sellingPriceSYP * item.qty;
+    const subNew = Math.floor(subOld / 100);
+    const subUSD = exchangeRate > 0 ? (subNew / exchangeRate) : 0;
+    lines.push(`• ${item.name} × ${item.qty}`);
+    lines.push(`  ${fmt(subOld)} ل.س.ق  |  ${fmt(subNew)} ل.س.ج  |  ${subUSD.toFixed(2)}$`);
   });
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
+  const finalOld = inv.finalTotalSYP ?? inv.totalSYP;
+  const finalNew = Math.floor(finalOld / 100);
+  const finalUSD = exchangeRate > 0 ? (finalNew / exchangeRate) : 0;
   if ((inv.discountPct && inv.discountPct > 0) || (inv.discountFixed && inv.discountFixed > 0)) {
-    lines.push(`المجموع الجزئي: ${formatPriceCurrency(inv.totalSYP, displayCurrency)}`);
-    if (inv.discountPct) lines.push(`🏷️ خصم ${inv.discountPct}%: -${formatPriceCurrency(inv.totalSYP - (inv.finalTotalSYP ?? inv.totalSYP), displayCurrency)}`);
-    if (inv.discountFixed) lines.push(`🏷️ خصم ثابت: -${formatPriceCurrency(inv.discountFixed, displayCurrency)}`);
-    lines.push(`💰 الإجمالي بعد الخصم: ${formatPriceCurrency(inv.finalTotalSYP ?? inv.totalSYP, displayCurrency)}`);
+    const subOld = inv.totalSYP;
+    const subNew = Math.floor(subOld / 100);
+    lines.push(`المجموع الجزئي: ${fmt(subOld)} ل.س.ق  /  ${fmt(subNew)} ل.س.ج`);
+    if (inv.discountPct) lines.push(`🏷️ خصم ${inv.discountPct}%`);
+    if (inv.discountFixed) lines.push(`🏷️ خصم ثابت: ${fmt(inv.discountFixed)} ل.س.ق`);
+    lines.push(`💰 الإجمالي بعد الخصم:`);
   } else {
-    lines.push(`💰 المجموع: ${formatPriceCurrency(inv.finalTotalSYP ?? inv.totalSYP, displayCurrency)}`);
+    lines.push(`💰 الإجمالي:`);
   }
+  lines.push(`  ${fmt(finalOld)} ل.س.ق`);
+  lines.push(`  ${fmt(finalNew)} ل.س.ج`);
+  lines.push(`  ${finalUSD.toFixed(2)} USD`);
+  lines.push(`💱 سعر الصرف: 1$ = ${fmt(exchangeRate)} ل.س.ج = ${fmt(exchangeRate * 100)} ل.س.ق`);
   lines.push(`📅 ${formatArabicDateShort(inv.createdAt)}`);
   lines.push('━━━━━━━━━━━━━━━━━━━━━━');
   lines.push(BRANDING_TEXT);

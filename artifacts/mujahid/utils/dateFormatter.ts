@@ -76,7 +76,7 @@ export function formatNewSYP(value: number): string {
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(Math.floor(value / 100)) + ' ل.س'
+    }).format(Math.floor(value / 100)) + ' ل.س.ج'
   );
 }
 
@@ -104,6 +104,6 @@ export function formatPriceCurrency(
     new Intl.NumberFormat('ar-SY', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(Math.floor(value / 100)) + ' ل.س'
+    }).format(Math.floor(value / 100)) + ' ل.س.ج'
   );
 }
