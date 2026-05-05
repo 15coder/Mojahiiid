@@ -39,8 +39,8 @@ export function SpeedDial({ actions, bottom = 24, right = 20 }: SpeedDialProps) 
   function toggle() {
     const next = !open;
     setOpen(next);
-    mainRotate.value = withSpring(next ? 45 : 0, { damping: 18, stiffness: 320 });
-    mainScale.value = withSpring(next ? 0.92 : 1, { damping: 18, stiffness: 320 });
+    mainRotate.value = withSpring(next ? 45 : 0, { damping: 28, stiffness: 280 });
+    mainScale.value = withSpring(next ? 0.94 : 1, { damping: 28, stiffness: 280 });
     if (next) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } else {
@@ -51,15 +51,15 @@ export function SpeedDial({ actions, bottom = 24, right = 20 }: SpeedDialProps) 
   function handleAction(action: SpeedDialAction) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setOpen(false);
-    mainRotate.value = withSpring(0, { damping: 18, stiffness: 320 });
-    mainScale.value = withSpring(1, { damping: 18, stiffness: 320 });
+    mainRotate.value = withSpring(0, { damping: 28, stiffness: 280 });
+    mainScale.value = withSpring(1, { damping: 28, stiffness: 280 });
     setTimeout(() => action.onPress(), 80);
   }
 
   function close() {
     setOpen(false);
-    mainRotate.value = withSpring(0, { damping: 18, stiffness: 320 });
-    mainScale.value = withSpring(1, { damping: 18, stiffness: 320 });
+    mainRotate.value = withSpring(0, { damping: 28, stiffness: 280 });
+    mainScale.value = withSpring(1, { damping: 28, stiffness: 280 });
   }
 
   return (
@@ -80,8 +80,8 @@ export function SpeedDial({ actions, bottom = 24, right = 20 }: SpeedDialProps) 
             return (
               <Animated.View
                 key={i}
-                entering={FadeInRight.delay(revIdx * 35).duration(220).springify().damping(18)}
-                exiting={FadeOutRight.duration(120)}
+                entering={FadeIn.delay(revIdx * 30).duration(200)}
+                exiting={FadeOut.duration(120)}
                 style={styles.miniRow}
               >
                 <View

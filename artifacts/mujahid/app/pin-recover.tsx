@@ -12,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  FadeIn,
   FadeInDown,
-  ZoomIn,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -137,14 +137,14 @@ export default function PinRecoverScreen({ onBack, onSuccess }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         {/* Icon */}
-        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.iconWrap}>
+        <Animated.View entering={FadeIn.duration(350)} style={styles.iconWrap}>
           <View style={[styles.iconCircle, { backgroundColor: colors.secondary }]}>
             <Ionicons name="shield-checkmark-outline" size={40} color={colors.primary} />
           </View>
         </Animated.View>
 
         {step === 'key' && (
-          <Animated.View entering={FadeInDown.duration(350).springify()} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(60).duration(300)} style={styles.section}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>أدخل مفتاح الأمان</Text>
             <Text style={[styles.stepDesc, { color: colors.mutedForeground }]}>
               ستجد مفتاح الأمان في الإعدادات، ضمن قسم الأمان
@@ -180,7 +180,7 @@ export default function PinRecoverScreen({ onBack, onSuccess }: Props) {
         )}
 
         {(step === 'newPin' || step === 'confirmPin') && (
-          <Animated.View entering={FadeInDown.duration(350).springify()} style={styles.section}>
+          <Animated.View entering={FadeInDown.delay(60).duration(300)} style={styles.section}>
             <Text style={[styles.stepTitle, { color: colors.foreground }]}>
               {step === 'newPin' ? 'أدخل رمز PIN الجديد' : 'تأكيد رمز PIN'}
             </Text>

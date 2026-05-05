@@ -182,10 +182,12 @@ export default function ScannerScreen() {
       if (found) {
         invoiceStore.addItem({ productId: found.id, name: found.name, unitPriceSYP: found.sellingPriceSYP });
         setLastAddedName(found.name);
+        // Stay on scanner — reset after 1.4s to allow scanning another item
         setTimeout(() => {
-          isNavigating.current = true;
-          router.back();
-        }, 700);
+          setScanned(false);
+          setLastCode(null);
+          setLastAddedName(null);
+        }, 1400);
       } else {
         setUnknownBarcode(data);
         setShowUnknownModal(true);

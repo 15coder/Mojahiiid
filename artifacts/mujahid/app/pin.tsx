@@ -19,7 +19,6 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -127,14 +126,14 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
 
       <View style={[styles.content, { paddingTop: topInset + 20, paddingBottom: bottomInset + 16 }]}>
         {/* Lock Icon */}
-        <Animated.View entering={ZoomIn.duration(450).springify().damping(14)} style={styles.lockWrap}>
+        <Animated.View entering={FadeIn.duration(350)} style={styles.lockWrap}>
           <View style={[styles.lockCircle, { backgroundColor: colors.primary }]}>
             <Ionicons name="lock-closed" size={44} color={colors.primaryForeground} />
           </View>
         </Animated.View>
 
         {/* Title */}
-        <Animated.View entering={FadeInDown.delay(100).duration(400).springify()} style={styles.titleBlock}>
+        <Animated.View entering={FadeInDown.delay(80).duration(320)} style={styles.titleBlock}>
           <Text style={[styles.title, { color: colors.foreground }]}>
             {settings.appName || 'مجاهد للتجارة'}
           </Text>
@@ -154,7 +153,7 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
                 onPress={() => inputRef.current?.focus()}
               >
                 <Animated.View
-                  entering={ZoomIn.delay(i * 60).springify()}
+                  entering={FadeIn.delay(i * 40).duration(280)}
                   style={[
                     styles.box,
                     {
@@ -170,7 +169,7 @@ export default function PinScreen({ onUnlock, onRecover }: Props) {
                 >
                   {filled && (
                     <Animated.View
-                      entering={ZoomIn.springify().damping(14)}
+                      entering={FadeIn.duration(180)}
                       style={[styles.boxDot, { backgroundColor: error ? colors.destructive : colors.primary }]}
                     />
                   )}
