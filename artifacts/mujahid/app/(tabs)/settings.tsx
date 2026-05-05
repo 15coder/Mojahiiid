@@ -31,7 +31,7 @@ import { useColors } from '@/hooks/useColors';
 import { THEMES, getThemeById } from '@/constants/themes';
 import { Category, DEFAULT_CATEGORIES } from '@/types/category';
 import { formatArabicDateShort, getBackupFileName } from '@/utils/dateFormatter';
-import { useInvoiceStore } from '@/utils/invoiceStore';
+import { invoiceStore, useInvoiceStore } from '@/utils/invoiceStore';
 
 const CAT_ICON_OPTIONS = [
   'nutrition-outline', 'leaf-outline', 'cafe-outline', 'flame-outline',
@@ -237,6 +237,10 @@ export default function SettingsScreen() {
         if (parsed.categories && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
           await resetCategories(parsed.categories);
           msg += ` و${parsed.categories.length} قسم`;
+        }
+        if (parsed.invoices && Array.isArray(parsed.invoices) && parsed.invoices.length > 0) {
+          await invoiceStore.restoreInvoices(parsed.invoices);
+          msg += ` و${parsed.invoices.length} فاتورة`;
         }
       } catch {}
       showToast({ message: msg, type: 'success' });

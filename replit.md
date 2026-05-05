@@ -31,10 +31,12 @@ pnpm workspace monorepo using TypeScript. Contains the "مجاهد للتجار�
   - Biometric lock (expo-local-authentication)
   - Fuzzy search (fuse.js)
   - Price trend tracking
-  - **Invoice store** with activeName + activeNote separated (invoiceStore.ts v3)
-  - **Invoice name** separate from note — stored as `name?` on SavedInvoice
-  - **Invoice history** shows name ("فاتورة بدون اسم" if empty) and note ("لا يوجد ملاحظة" if empty)
-  - **JSON backup/restore** — saves to `Nidaa/Backups/` with timestamped Arabic filenames
+  - **Invoice store** with customerName + notes on each saved invoice
+  - **Invoice tab renamed** to "الفواتير" with expandable item details per invoice
+  - **Custom item modal** — add item by name+price directly to invoice (replaces share button)
+  - **Leave guard** — asks save/leave when navigating away with unsaved invoice items
+  - **JSON backup/restore** — includes invoices; restores invoices on import
+  - **Keyboard avoidance** fixed for customer/notes modal on Android
   - RTL Arabic UI with Tajawal font
   - Dark/light mode support
   - AsyncStorage persistence (key: `@mujahid:invoices_v3`)

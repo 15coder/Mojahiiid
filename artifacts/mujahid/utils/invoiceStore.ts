@@ -174,6 +174,19 @@ export const invoiceStore = {
     _notify();
   },
 
+  async restoreInvoices(invoices: SavedInvoice[]) {
+    _saved = invoices;
+    const maxNum = invoices.reduce((max, inv) => Math.max(max, inv.number), 0);
+    const next = maxNum + 1;
+    _draft = { ...INITIAL_DRAFT, number: next };
+    await Promise.all([
+      AsyncStorage.setItem(SAVED_KEY, JSON.stringify(_saved)),
+      AsyncStorage.setItem(COUNTER_KEY, String(next)),
+      AsyncStorage.removeItem(DRAFT_KEY),
+    ]);
+    _notify();
+  },
+
   getStats(period: StatsPeriod): StatsResult {
     const now = new Date();
     const filtered = _saved.filter(inv => {
@@ -193,7 +206,7 @@ export const invoiceStore = {
 };
 
 export function useInvoiceStore() {
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -212,6 +225,7 @@ export function useInvoiceStore() {
   const saved = invoiceStore.getSaved();
 
   return {
+    tick,
     isLoaded: invoiceStore.isLoaded(),
     items: draft.items,
     customerName: draft.customerName,
@@ -228,6 +242,7 @@ export function useInvoiceStore() {
     newInvoice: () => invoiceStore.newInvoice(),
     deleteSaved: (id: string) => invoiceStore.deleteSaved(id),
     clearAll: () => invoiceStore.clearAll(),
+    restoreInvoices: (invoices: SavedInvoice[]) => invoiceStore.restoreInvoices(invoices),
     getStats: (p: StatsPeriod) => invoiceStore.getStats(p),
   };
 }

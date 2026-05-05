@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,6 +43,7 @@ export default function CalculatorScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const navigation = useNavigation();
   const { products } = useProducts();
   const { settings } = useSettings();
   const { showToast } = useToast();
@@ -55,12 +57,28 @@ export default function CalculatorScreen() {
   const [statsPeriod, setStatsPeriod] = useState<StatsPeriod>('today');
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
   const searchRef = useRef<TextInput>(null);
+  const pendingNavRef = useRef<(() => void) | null>(null);
 
   const exchangeRate = settings.exchangeRate;
   const totalSYP = store.totalSYP;
   const totalSYJ = Math.round(totalSYP / 100);
   const totalUSD = exchangeRate > 0 ? totalSYP / exchangeRate : 0;
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove' as any, (e: any) => {
+      if (store.items.length === 0) return;
+      e.preventDefault();
+      pendingNavRef.current = () => navigation.dispatch(e.data.action);
+      setShowLeaveModal(true);
+    });
+    return unsubscribe;
+  }, [navigation, store.items.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,7 +87,9 @@ export default function CalculatorScreen() {
       const product = products.find(p => p.barcode === barcode);
       if (product) {
         store.addItem({ productId: product.id, name: product.name, unitPriceSYP: product.sellingPriceSYP });
+        setTab('invoice');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showToast({ message: `✓ أُضيف: ${product.name}`, type: 'success' });
       } else {
         showToast({ message: 'المنتج غير موجود في القائمة', type: 'warning' });
       }
@@ -92,6 +112,31 @@ export default function CalculatorScreen() {
     store.setCustomerName(customerInput.trim());
     store.setNotes(notesInput.trim());
     setShowCustomerModal(false);
+  }
+
+  function openAddItemModal() {
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setShowAddItemModal(true);
+  }
+
+  function confirmAddCustomItem() {
+    const name = customItemName.trim();
+    const price = parseFloat(customItemPrice.replace(/,/g, ''));
+    if (!name) {
+      showToast({ message: 'يرجى إدخال اسم العنصر', type: 'warning' });
+      return;
+    }
+    if (isNaN(price) || price <= 0) {
+      showToast({ message: 'يرجى إدخال سعر صحيح', type: 'warning' });
+      return;
+    }
+    const customId = `custom_${Date.now()}`;
+    store.addItem({ productId: customId, name, unitPriceSYP: price });
+    setShowAddItemModal(false);
+    setTab('invoice');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast({ message: `✓ أُضيف: ${name}`, type: 'success' });
   }
 
   async function handleSaveInvoice() {
@@ -123,24 +168,6 @@ export default function CalculatorScreen() {
     }
   }
 
-  async function handleDraftPdf() {
-    if (store.items.length === 0) {
-      showToast({ message: 'الفاتورة فارغة', type: 'warning' });
-      return;
-    }
-    const draft: SavedInvoice = {
-      id: 'draft',
-      number: store.number,
-      customerName: store.customerName,
-      notes: store.notes,
-      items: store.items,
-      totalSYP,
-      exchangeRate,
-      createdAt: new Date().toISOString(),
-    };
-    await handlePdf(draft);
-  }
-
   function addFromSearch(product: (typeof products)[0]) {
     store.addItem({ productId: product.id, name: product.name, unitPriceSYP: product.sellingPriceSYP });
     setSearchQuery('');
@@ -151,6 +178,8 @@ export default function CalculatorScreen() {
   }
 
   const stats = store.getStats(statsPeriod);
+
+  const items = store.items;
 
   if (!store.isLoaded) {
     return (
@@ -176,7 +205,10 @@ export default function CalculatorScreen() {
           onPress={openCustomerModal}
           hitSlop={8}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.foreground} />
+          <Ionicons name="person-outline" size={18} color={colors.foreground} />
+          {(store.customerName || store.notes) ? (
+            <View style={[s.arrowDot, { backgroundColor: colors.primary }]} />
+          ) : null}
         </TouchableOpacity>
       </View>
 
@@ -185,7 +217,7 @@ export default function CalculatorScreen() {
         {(
           [
             { id: 'invoice', label: 'الفاتورة', icon: 'receipt-outline' },
-            { id: 'records', label: 'السجلات', icon: 'time-outline', badge: store.savedInvoices.length },
+            { id: 'records', label: 'الفواتير', icon: 'time-outline', badge: store.savedInvoices.length },
             { id: 'stats', label: 'إحصائيات', icon: 'stats-chart-outline' },
           ] as const
         ).map(t => {
@@ -221,25 +253,10 @@ export default function CalculatorScreen() {
           <View style={[s.actionBar, { backgroundColor: colors.background }]}>
             <TouchableOpacity
               style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={openCustomerModal}
+              onPress={openAddItemModal}
               activeOpacity={0.75}
             >
-              <Ionicons name="person-outline" size={18} color={colors.foreground} />
-              {(store.customerName || store.notes) ? (
-                <View style={[s.dot, { backgroundColor: colors.primary }]} />
-              ) : null}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={handleDraftPdf}
-              activeOpacity={0.75}
-              disabled={pdfLoadingId === 'draft'}
-            >
-              {pdfLoadingId === 'draft'
-                ? <ActivityIndicator size="small" color={colors.primary} />
-                : <Ionicons name="document-text-outline" size={18} color={colors.foreground} />
-              }
+              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
             </TouchableOpacity>
 
             <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -247,7 +264,7 @@ export default function CalculatorScreen() {
               <TextInput
                 ref={searchRef}
                 style={[s.searchInput, { color: colors.foreground }]}
-                placeholder="بحث"
+                placeholder="بحث عن منتج"
                 placeholderTextColor={colors.mutedForeground}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -298,55 +315,62 @@ export default function CalculatorScreen() {
           )}
 
           {/* Items or empty state */}
-          {store.items.length === 0 ? (
+          {items.length === 0 ? (
             <View style={s.empty}>
               <View style={[s.emptyIcon, { backgroundColor: colors.secondary }]}>
                 <Ionicons name="receipt-outline" size={50} color={colors.primary} />
               </View>
               <Text style={[s.emptyTitle, { color: colors.foreground }]}>فاتورة #{store.number} فارغة</Text>
-              <Text style={[s.emptySub, { color: colors.mutedForeground }]}>امسح باركود أو ابحث عن منتج</Text>
+              <Text style={[s.emptySub, { color: colors.mutedForeground }]}>امسح باركود أو ابحث عن منتج أو أضف عنصراً</Text>
             </View>
           ) : (
-            <ScrollView
-              style={s.flex}
-              contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
+            <FlatList
+              data={items}
+              keyExtractor={item => item.productId}
+              contentContainerStyle={{ padding: 12, paddingBottom: 130 }}
               keyboardShouldPersistTaps="always"
               showsVerticalScrollIndicator={false}
-            >
-              {store.items.map(item => {
+              extraData={store.tick}
+              renderItem={({ item }) => {
                 const lineTotal = item.unitPriceSYP * item.qty;
                 return (
-                  <View key={item.productId} style={[s.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[s.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={s.itemRow}>
-                      <TouchableOpacity
+                      <Pressable
                         style={s.trashBtn}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
-                        onPress={() => { store.removeItem(item.productId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                        activeOpacity={0.6}
+                        onPress={() => {
+                          store.removeItem(item.productId);
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }}
                       >
                         <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-                      </TouchableOpacity>
+                      </Pressable>
 
                       <View style={[s.qtyBox, { borderColor: colors.border }]}>
-                        <TouchableOpacity
+                        <Pressable
                           style={s.qtyBtn}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
-                          activeOpacity={0.5}
-                          onPress={() => { store.updateQty(item.productId, item.qty - 1); Haptics.selectionAsync(); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                          onPress={() => {
+                            store.updateQty(item.productId, item.qty - 1);
+                            Haptics.selectionAsync();
+                          }}
                         >
                           <Text style={[s.qtyBtnTxt, { color: item.qty === 1 ? '#FF3B30' : colors.primary }]}>
                             {item.qty === 1 ? '×' : '−'}
                           </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                         <Text style={[s.qtyNum, { color: colors.foreground }]}>{item.qty}</Text>
-                        <TouchableOpacity
+                        <Pressable
                           style={s.qtyBtn}
-                          hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
-                          activeOpacity={0.5}
-                          onPress={() => { store.updateQty(item.productId, item.qty + 1); Haptics.selectionAsync(); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                          onPress={() => {
+                            store.updateQty(item.productId, item.qty + 1);
+                            Haptics.selectionAsync();
+                          }}
                         >
                           <Text style={[s.qtyBtnTxt, { color: colors.primary }]}>+</Text>
-                        </TouchableOpacity>
+                        </Pressable>
                       </View>
 
                       <View style={s.itemInfo}>
@@ -365,12 +389,12 @@ export default function CalculatorScreen() {
                     </View>
                   </View>
                 );
-              })}
-            </ScrollView>
+              }}
+            />
           )}
 
           {/* Total bar */}
-          {store.items.length > 0 && (
+          {items.length > 0 && (
             <Animated.View
               entering={FadeIn}
               exiting={FadeOut}
@@ -410,7 +434,7 @@ export default function CalculatorScreen() {
           {store.savedInvoices.length === 0 ? (
             <View style={s.empty}>
               <View style={[s.emptyIcon, { backgroundColor: colors.secondary }]}>
-                <Ionicons name="time-outline" size={50} color={colors.primary} />
+                <Ionicons name="receipt-outline" size={50} color={colors.primary} />
               </View>
               <Text style={[s.emptyTitle, { color: colors.foreground }]}>لا توجد فواتير محفوظة</Text>
               <Text style={[s.emptySub, { color: colors.mutedForeground }]}>الفواتير ستظهر هنا بعد الحفظ</Text>
@@ -424,13 +448,19 @@ export default function CalculatorScreen() {
               renderItem={({ item: inv }) => {
                 const invSYJ = Math.round(inv.totalSYP / 100);
                 const invUSD = inv.exchangeRate > 0 ? inv.totalSYP / inv.exchangeRate : 0;
+                const isExpanded = expandedInvoiceId === inv.id;
                 return (
                   <View style={[s.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={s.recordTop}>
+                    <TouchableOpacity
+                      style={s.recordTop}
+                      onPress={() => setExpandedInvoiceId(isExpanded ? null : inv.id)}
+                      activeOpacity={0.75}
+                    >
                       <View style={s.recordActions}>
                         <TouchableOpacity
                           style={[s.recBtn, { backgroundColor: '#FF3B3010' }]}
                           onPress={() => { store.deleteSaved(inv.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                          hitSlop={6}
                         >
                           <Ionicons name="trash-outline" size={16} color="#FF3B30" />
                         </TouchableOpacity>
@@ -438,6 +468,7 @@ export default function CalculatorScreen() {
                           style={[s.recBtn, { backgroundColor: colors.primary + '12' }]}
                           onPress={() => handlePdf(inv)}
                           disabled={pdfLoadingId === inv.id}
+                          hitSlop={6}
                         >
                           {pdfLoadingId === inv.id
                             ? <ActivityIndicator size="small" color={colors.primary} />
@@ -452,11 +483,54 @@ export default function CalculatorScreen() {
                             {inv.customerName}
                           </Text>
                         ) : null}
+                        {inv.notes ? (
+                          <Text style={[s.recordNote, { color: colors.mutedForeground }]} numberOfLines={1}>
+                            {inv.notes}
+                          </Text>
+                        ) : null}
                         <Text style={[s.recordDate, { color: colors.mutedForeground }]}>
                           {formatArabicDateShort(inv.createdAt)}
                         </Text>
                       </View>
-                    </View>
+                      <Ionicons
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={colors.mutedForeground}
+                        style={{ marginLeft: 4 }}
+                      />
+                    </TouchableOpacity>
+
+                    {isExpanded && (
+                      <View style={[s.recordDetails, { borderTopColor: colors.border }]}>
+                        {inv.items.map((it, idx) => (
+                          <View
+                            key={`${it.productId}_${idx}`}
+                            style={[s.detailRow, idx < inv.items.length - 1 && { borderBottomColor: colors.border, borderBottomWidth: StyleSheet.hairlineWidth }]}
+                          >
+                            <Text style={[s.detailTotal, { color: colors.primary }]}>
+                              {fmtSYP(it.unitPriceSYP * it.qty)} ل.س.ق
+                            </Text>
+                            <Text style={[s.detailQty, { color: colors.mutedForeground }]}>× {it.qty}</Text>
+                            <Text style={[s.detailName, { color: colors.foreground }]} numberOfLines={1}>{it.name}</Text>
+                          </View>
+                        ))}
+                        {(inv.customerName || inv.notes) && (
+                          <View style={[s.detailInfoBox, { backgroundColor: colors.secondary, borderTopColor: colors.border }]}>
+                            {inv.customerName ? (
+                              <Text style={[s.detailInfoTxt, { color: colors.mutedForeground }]}>
+                                الزبون: <Text style={{ color: colors.foreground }}>{inv.customerName}</Text>
+                              </Text>
+                            ) : null}
+                            {inv.notes ? (
+                              <Text style={[s.detailInfoTxt, { color: colors.mutedForeground }]}>
+                                ملاحظات: <Text style={{ color: colors.foreground }}>{inv.notes}</Text>
+                              </Text>
+                            ) : null}
+                          </View>
+                        )}
+                      </View>
+                    )}
+
                     <View style={[s.recordBottom, { borderTopColor: colors.border }]}>
                       <Text style={[s.recSecondary, { color: colors.mutedForeground }]}>
                         {fmtSYP(invSYJ)} ل.س.ج  ·  {fmtUSD(invUSD)} $
@@ -545,9 +619,13 @@ export default function CalculatorScreen() {
 
       {/* ── Customer Modal ── */}
       <Modal visible={showCustomerModal} transparent animationType="slide" onRequestClose={() => setShowCustomerModal(false)}>
-        <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setShowCustomerModal(false)}>
-            <TouchableOpacity activeOpacity={1}>
+        <KeyboardAvoidingView
+          style={s.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <Pressable style={s.backdrop} onPress={() => setShowCustomerModal(false)}>
+            <Pressable>
               <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={[s.handle, { backgroundColor: colors.border }]} />
                 <Text style={[s.panelTitle, { color: colors.foreground }]}>معلومات الزبون</Text>
@@ -588,9 +666,119 @@ export default function CalculatorScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            </TouchableOpacity>
-          </TouchableOpacity>
+            </Pressable>
+          </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Add Custom Item Modal ── */}
+      <Modal visible={showAddItemModal} transparent animationType="slide" onRequestClose={() => setShowAddItemModal(false)}>
+        <KeyboardAvoidingView
+          style={s.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <Pressable style={s.backdrop} onPress={() => setShowAddItemModal(false)}>
+            <Pressable>
+              <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[s.handle, { backgroundColor: colors.border }]} />
+                <Text style={[s.panelTitle, { color: colors.foreground }]}>إضافة عنصر مخصص</Text>
+
+                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم العنصر</Text>
+                <TextInput
+                  style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="مثال: خدمة شحن"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={customItemName}
+                  onChangeText={setCustomItemName}
+                  returnKeyType="next"
+                  autoFocus
+                />
+
+                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>السعر (ل.س.ق)</Text>
+                <TextInput
+                  style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                  placeholder="مثال: 50000"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={customItemPrice}
+                  onChangeText={setCustomItemPrice}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  onSubmitEditing={confirmAddCustomItem}
+                />
+
+                <View style={s.modalBtns}>
+                  <TouchableOpacity
+                    style={[s.modalCancel, { borderColor: colors.border }]}
+                    onPress={() => setShowAddItemModal(false)}
+                  >
+                    <Text style={[s.modalCancelTxt, { color: colors.mutedForeground }]}>إلغاء</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.modalSave, { backgroundColor: colors.primary }]}
+                    onPress={confirmAddCustomItem}
+                  >
+                    <Text style={s.modalSaveTxt}>إضافة</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Leave Without Save Modal ── */}
+      <Modal visible={showLeaveModal} transparent animationType="fade" onRequestClose={() => setShowLeaveModal(false)}>
+        <Pressable style={s.leaveBackdrop} onPress={() => setShowLeaveModal(false)}>
+          <Pressable>
+            <View style={[s.leaveBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[s.leaveIconWrap, { backgroundColor: colors.warning + '18' }]}>
+                <Ionicons name="warning-outline" size={30} color={colors.warning} />
+              </View>
+              <Text style={[s.leaveTitle, { color: colors.foreground }]}>مغادرة الفاتورة؟</Text>
+              <Text style={[s.leaveMsg, { color: colors.mutedForeground }]}>
+                الفاتورة الحالية تحتوي على {items.length} عنصر غير محفوظ. هل تريد المغادرة بدون حفظ؟
+              </Text>
+              <View style={s.leaveBtns}>
+                <TouchableOpacity
+                  style={[s.leaveBtn, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
+                  onPress={() => setShowLeaveModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.leaveBtnTxt, { color: colors.foreground }]}>البقاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.leaveBtn, { backgroundColor: '#FF3B30' }]}
+                  onPress={() => {
+                    setShowLeaveModal(false);
+                    if (pendingNavRef.current) {
+                      pendingNavRef.current();
+                      pendingNavRef.current = null;
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.leaveBtnTxt, { color: '#fff' }]}>مغادرة</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={[s.leaveSaveBtn, { backgroundColor: colors.primary }]}
+                onPress={async () => {
+                  setShowLeaveModal(false);
+                  await handleSaveInvoice();
+                  if (pendingNavRef.current) {
+                    pendingNavRef.current();
+                    pendingNavRef.current = null;
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                <Text style={[s.leaveBtnTxt, { color: '#fff' }]}>حفظ ثم مغادرة</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -614,6 +802,7 @@ const s = StyleSheet.create({
   headerTitle: { fontFamily: 'Tajawal_700Bold', fontSize: 18 },
   headerSub: { fontFamily: 'Tajawal_400Regular', fontSize: 13, marginTop: 1 },
   arrowBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  arrowDot: { position: 'absolute', top: 5, right: 5, width: 7, height: 7, borderRadius: 4 },
 
   // Tab bar
   tabBar: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
@@ -695,8 +884,26 @@ const s = StyleSheet.create({
   recBtn: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   recordMeta: { flex: 1, alignItems: 'flex-end' },
   recordNum: { fontFamily: 'Tajawal_700Bold', fontSize: 15 },
-  recordCustomer: { fontFamily: 'Tajawal_400Regular', fontSize: 13, marginTop: 1 },
+  recordCustomer: { fontFamily: 'Tajawal_500Medium', fontSize: 13, marginTop: 1 },
+  recordNote: { fontFamily: 'Tajawal_400Regular', fontSize: 12, marginTop: 1, fontStyle: 'italic' },
   recordDate: { fontFamily: 'Tajawal_400Regular', fontSize: 12, marginTop: 1 },
+  recordDetails: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  detailRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6,
+  },
+  detailName: { flex: 1, fontFamily: 'Tajawal_400Regular', fontSize: 13, textAlign: 'right' },
+  detailQty: { fontFamily: 'Tajawal_400Regular', fontSize: 12, color: '#888' },
+  detailTotal: { fontFamily: 'Tajawal_700Bold', fontSize: 13, minWidth: 80, textAlign: 'left' },
+  detailInfoBox: {
+    marginTop: 6, marginBottom: 4, borderRadius: 8, padding: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, gap: 2,
+  },
+  detailInfoTxt: { fontFamily: 'Tajawal_400Regular', fontSize: 12, textAlign: 'right' },
   recordBottom: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth,
@@ -723,7 +930,7 @@ const s = StyleSheet.create({
   statsInvName: { flex: 1, fontFamily: 'Tajawal_400Regular', fontSize: 13, textAlign: 'right' },
   statsInvTotal: { fontFamily: 'Tajawal_700Bold', fontSize: 13 },
 
-  // Customer modal
+  // Customer/Add Item modal
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'flex-end' },
   panel: {
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
@@ -743,4 +950,18 @@ const s = StyleSheet.create({
   modalCancelTxt: { fontFamily: 'Tajawal_500Medium', fontSize: 15 },
   modalSave: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   modalSaveTxt: { color: '#fff', fontFamily: 'Tajawal_700Bold', fontSize: 15 },
+
+  // Leave modal
+  leaveBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  leaveBox: {
+    width: '100%', borderRadius: 20, borderWidth: 1, padding: 24, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 16,
+  },
+  leaveIconWrap: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  leaveTitle: { fontFamily: 'Tajawal_700Bold', fontSize: 18, marginBottom: 8, textAlign: 'center' },
+  leaveMsg: { fontFamily: 'Tajawal_400Regular', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  leaveBtns: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 10 },
+  leaveBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  leaveBtnTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 15 },
+  leaveSaveBtn: { width: '100%', borderRadius: 12, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });
