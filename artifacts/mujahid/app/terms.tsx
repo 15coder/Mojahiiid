@@ -35,6 +35,7 @@ export default function TermsScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
+        style={{ direction: 'rtl' } as any}
       >
         {/* Icon */}
         <View style={[styles.iconBlock, { backgroundColor: colors.primary + '15' }]}>

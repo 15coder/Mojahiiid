@@ -695,49 +695,6 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-          {/* Auto-Lock Timer */}
-          <View style={{ paddingVertical: 12, paddingHorizontal: 2, gap: 8 }}>
-            <View style={styles.secRow}>
-              <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
-                <Text style={[styles.switchLabel, { color: colors.foreground }]}>قفل تلقائي</Text>
-                <Text style={[styles.switchNote, { color: colors.mutedForeground }]}>
-                  {(settings.autoLockMinutes ?? 0) === 0
-                    ? 'معطّل'
-                    : `بعد ${settings.autoLockMinutes} دقيقة من عدم النشاط`}
-                </Text>
-              </View>
-              <View style={[styles.secIconWrap, { backgroundColor: colors.primary + '15' }]}>
-                <Ionicons name="timer-outline" size={20} color={colors.primary} />
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {[0, 1, 5, 15, 30].map((mins) => {
-                const isActive = (settings.autoLockMinutes ?? 0) === mins;
-                return (
-                  <TouchableOpacity
-                    key={mins}
-                    style={[
-                      styles.autoLockPill,
-                      {
-                        backgroundColor: isActive ? colors.primary : colors.secondary,
-                        borderColor: isActive ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => {
-                      updateSettings({ autoLockMinutes: mins });
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                  >
-                    <Text style={[styles.autoLockPillText, { color: isActive ? colors.primaryForeground : colors.foreground }]}>
-                      {mins === 0 ? 'معطّل' : `${mins} د`}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
         </View>
 
         {/* Backup */}

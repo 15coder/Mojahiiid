@@ -24,7 +24,7 @@ function generateSecurityKey(): string {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  exchangeRate: 1400000,
+  exchangeRate: 13000,
   biometricEnabled: false,
   darkMode: 'system',
   themeId: DEFAULT_THEME_ID,

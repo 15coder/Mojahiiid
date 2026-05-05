@@ -145,12 +145,12 @@ export const invoiceStore = {
     _saved = [inv, ..._saved];
     const next = _draft.number + 1;
     _draft = { ...INITIAL_DRAFT, number: next };
+    _notify();
     await Promise.all([
       AsyncStorage.setItem(SAVED_KEY, JSON.stringify(_saved)),
       AsyncStorage.setItem(COUNTER_KEY, String(next)),
       AsyncStorage.removeItem(DRAFT_KEY),
     ]);
-    _notify();
     return inv;
   },
 
