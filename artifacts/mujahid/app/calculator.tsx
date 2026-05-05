@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Modal,
   Pressable,
@@ -62,6 +62,7 @@ export default function CalculatorScreen() {
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
+  const [kbHeight, setKbHeight] = useState(0);
   const searchRef = useRef<TextInput>(null);
   const pendingNavRef = useRef<(() => void) | null>(null);
 
@@ -69,6 +70,14 @@ export default function CalculatorScreen() {
   const totalSYP = store.totalSYP;
   const totalSYJ = Math.round(totalSYP / 100);
   const totalUSD = exchangeRate > 0 ? totalSYP / exchangeRate : 0;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, e => setKbHeight(e.endCoordinates.height));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKbHeight(0));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove' as any, (e: any) => {
@@ -200,16 +209,7 @@ export default function CalculatorScreen() {
           <Text style={[s.headerTitle, { color: colors.foreground }]}>حاسبة</Text>
           <Text style={[s.headerSub, { color: colors.mutedForeground }]}>فاتورة #{store.number}</Text>
         </View>
-        <TouchableOpacity
-          style={[s.arrowBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-          onPress={openCustomerModal}
-          hitSlop={8}
-        >
-          <Ionicons name="person-outline" size={18} color={colors.foreground} />
-          {(store.customerName || store.notes) ? (
-            <View style={[s.arrowDot, { backgroundColor: colors.primary }]} />
-          ) : null}
-        </TouchableOpacity>
+        <View style={s.headerBtn} />
       </View>
 
       {/* ── Tab Bar ── */}
@@ -251,6 +251,17 @@ export default function CalculatorScreen() {
         <View style={s.flex}>
           {/* Action bar */}
           <View style={[s.actionBar, { backgroundColor: colors.background }]}>
+            <TouchableOpacity
+              style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={openCustomerModal}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="person-outline" size={19} color={colors.foreground} />
+              {(store.customerName || store.notes) ? (
+                <View style={[s.dot, { backgroundColor: colors.primary }]} />
+              ) : null}
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[s.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={openAddItemModal}
@@ -618,113 +629,111 @@ export default function CalculatorScreen() {
       )}
 
       {/* ── Customer Modal ── */}
-      <Modal visible={showCustomerModal} transparent animationType="slide" onRequestClose={() => setShowCustomerModal(false)}>
-        <KeyboardAvoidingView
-          style={s.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <Pressable style={s.backdrop} onPress={() => setShowCustomerModal(false)}>
-            <Pressable>
-              <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[s.handle, { backgroundColor: colors.border }]} />
-                <Text style={[s.panelTitle, { color: colors.foreground }]}>معلومات الزبون</Text>
+      <Modal
+        visible={showCustomerModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { Keyboard.dismiss(); setShowCustomerModal(false); }}
+      >
+        <Pressable style={s.backdrop} onPress={() => { Keyboard.dismiss(); setShowCustomerModal(false); }}>
+          <Pressable>
+            <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}>
+              <View style={[s.handle, { backgroundColor: colors.border }]} />
+              <Text style={[s.panelTitle, { color: colors.foreground }]}>معلومات الزبون</Text>
 
-                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم الزبون</Text>
-                <TextInput
-                  style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
-                  placeholder="اسم الزبون (اختياري)"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={customerInput}
-                  onChangeText={setCustomerInput}
-                  returnKeyType="next"
-                />
+              <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم الزبون</Text>
+              <TextInput
+                style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                placeholder="اسم الزبون (اختياري)"
+                placeholderTextColor={colors.mutedForeground}
+                value={customerInput}
+                onChangeText={setCustomerInput}
+                returnKeyType="next"
+              />
 
-                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>ملاحظات</Text>
-                <TextInput
-                  style={[s.fieldInput, s.fieldArea, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
-                  placeholder="ملاحظات (اختياري)"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={notesInput}
-                  onChangeText={setNotesInput}
-                  multiline
-                  numberOfLines={3}
-                />
+              <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>ملاحظات</Text>
+              <TextInput
+                style={[s.fieldInput, s.fieldArea, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                placeholder="ملاحظات (اختياري)"
+                placeholderTextColor={colors.mutedForeground}
+                value={notesInput}
+                onChangeText={setNotesInput}
+                multiline
+                numberOfLines={3}
+              />
 
-                <View style={s.modalBtns}>
-                  <TouchableOpacity
-                    style={[s.modalCancel, { borderColor: colors.border }]}
-                    onPress={() => setShowCustomerModal(false)}
-                  >
-                    <Text style={[s.modalCancelTxt, { color: colors.mutedForeground }]}>إلغاء</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.modalSave, { backgroundColor: colors.primary }]}
-                    onPress={saveCustomerInfo}
-                  >
-                    <Text style={s.modalSaveTxt}>حفظ</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={s.modalBtns}>
+                <TouchableOpacity
+                  style={[s.modalCancel, { borderColor: colors.border }]}
+                  onPress={() => { Keyboard.dismiss(); setShowCustomerModal(false); }}
+                >
+                  <Text style={[s.modalCancelTxt, { color: colors.mutedForeground }]}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.modalSave, { backgroundColor: colors.primary }]}
+                  onPress={saveCustomerInfo}
+                >
+                  <Text style={s.modalSaveTxt}>حفظ</Text>
+                </TouchableOpacity>
               </View>
-            </Pressable>
+            </View>
           </Pressable>
-        </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
 
       {/* ── Add Custom Item Modal ── */}
-      <Modal visible={showAddItemModal} transparent animationType="slide" onRequestClose={() => setShowAddItemModal(false)}>
-        <KeyboardAvoidingView
-          style={s.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <Pressable style={s.backdrop} onPress={() => setShowAddItemModal(false)}>
-            <Pressable>
-              <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[s.handle, { backgroundColor: colors.border }]} />
-                <Text style={[s.panelTitle, { color: colors.foreground }]}>إضافة عنصر مخصص</Text>
+      <Modal
+        visible={showAddItemModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { Keyboard.dismiss(); setShowAddItemModal(false); }}
+      >
+        <Pressable style={s.backdrop} onPress={() => { Keyboard.dismiss(); setShowAddItemModal(false); }}>
+          <Pressable>
+            <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}>
+              <View style={[s.handle, { backgroundColor: colors.border }]} />
+              <Text style={[s.panelTitle, { color: colors.foreground }]}>إضافة عنصر مخصص</Text>
 
-                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم العنصر</Text>
-                <TextInput
-                  style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
-                  placeholder="مثال: خدمة شحن"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={customItemName}
-                  onChangeText={setCustomItemName}
-                  returnKeyType="next"
-                  autoFocus
-                />
+              <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم العنصر</Text>
+              <TextInput
+                style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                placeholder="مثال: خدمة شحن"
+                placeholderTextColor={colors.mutedForeground}
+                value={customItemName}
+                onChangeText={setCustomItemName}
+                returnKeyType="next"
+                autoFocus
+              />
 
-                <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>السعر (ل.س.ق)</Text>
-                <TextInput
-                  style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
-                  placeholder="مثال: 50000"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={customItemPrice}
-                  onChangeText={setCustomItemPrice}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                  onSubmitEditing={confirmAddCustomItem}
-                />
+              <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>السعر (ل.س.ق)</Text>
+              <TextInput
+                style={[s.fieldInput, { color: colors.foreground, backgroundColor: colors.background, borderColor: colors.border }]}
+                placeholder="مثال: 50000"
+                placeholderTextColor={colors.mutedForeground}
+                value={customItemPrice}
+                onChangeText={setCustomItemPrice}
+                keyboardType="numeric"
+                returnKeyType="done"
+                onSubmitEditing={confirmAddCustomItem}
+              />
 
-                <View style={s.modalBtns}>
-                  <TouchableOpacity
-                    style={[s.modalCancel, { borderColor: colors.border }]}
-                    onPress={() => setShowAddItemModal(false)}
-                  >
-                    <Text style={[s.modalCancelTxt, { color: colors.mutedForeground }]}>إلغاء</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.modalSave, { backgroundColor: colors.primary }]}
-                    onPress={confirmAddCustomItem}
-                  >
-                    <Text style={s.modalSaveTxt}>إضافة</Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={s.modalBtns}>
+                <TouchableOpacity
+                  style={[s.modalCancel, { borderColor: colors.border }]}
+                  onPress={() => { Keyboard.dismiss(); setShowAddItemModal(false); }}
+                >
+                  <Text style={[s.modalCancelTxt, { color: colors.mutedForeground }]}>إلغاء</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.modalSave, { backgroundColor: colors.primary }]}
+                  onPress={confirmAddCustomItem}
+                >
+                  <Text style={s.modalSaveTxt}>إضافة</Text>
+                </TouchableOpacity>
               </View>
-            </Pressable>
+            </View>
           </Pressable>
-        </KeyboardAvoidingView>
+        </Pressable>
       </Modal>
 
       {/* ── Leave Without Save Modal ── */}
