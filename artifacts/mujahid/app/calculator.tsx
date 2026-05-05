@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
@@ -65,6 +65,7 @@ export default function CalculatorScreen() {
   const [kbHeight, setKbHeight] = useState(0);
   const searchRef = useRef<TextInput>(null);
   const pendingNavRef = useRef<(() => void) | null>(null);
+  const recordsListRef = useRef<any>(null);
 
   const exchangeRate = settings.exchangeRate;
   const totalSYP = store.totalSYP;
@@ -159,6 +160,9 @@ export default function CalculatorScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       showToast({ message: 'تم حفظ الفاتورة بنجاح', type: 'success' });
       setTab('records');
+      setTimeout(() => {
+        recordsListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 120);
     } catch {
       showToast({ message: 'فشل حفظ الفاتورة', type: 'error' });
     } finally {
@@ -248,7 +252,7 @@ export default function CalculatorScreen() {
 
       {/* ── Tab Content ── */}
       {tab === 'invoice' && (
-        <View style={s.flex}>
+        <Animated.View entering={FadeIn.duration(220)} style={s.flex}>
           {/* Action bar */}
           <View style={[s.actionBar, { backgroundColor: colors.background }]}>
             <TouchableOpacity
@@ -407,8 +411,8 @@ export default function CalculatorScreen() {
           {/* Total bar */}
           {items.length > 0 && (
             <Animated.View
-              entering={FadeIn}
-              exiting={FadeOut}
+              entering={FadeIn.duration(250)}
+              exiting={FadeOut.duration(180)}
               style={[s.totalBar, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: insets.bottom + 10 }]}
             >
               <View style={s.totalAmounts}>
@@ -437,11 +441,11 @@ export default function CalculatorScreen() {
               </TouchableOpacity>
             </Animated.View>
           )}
-        </View>
+        </Animated.View>
       )}
 
       {tab === 'records' && (
-        <View style={s.flex}>
+        <Animated.View entering={FadeIn.duration(220)} style={s.flex}>
           {store.savedInvoices.length === 0 ? (
             <View style={s.empty}>
               <View style={[s.emptyIcon, { backgroundColor: colors.secondary }]}>
@@ -452,16 +456,18 @@ export default function CalculatorScreen() {
             </View>
           ) : (
             <FlatList
+              ref={recordsListRef}
               data={store.savedInvoices}
               keyExtractor={i => i.id}
+              extraData={store.tick}
               contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 20 }}
               showsVerticalScrollIndicator={false}
-              renderItem={({ item: inv }) => {
+              renderItem={({ item: inv, index }) => {
                 const invSYJ = Math.round(inv.totalSYP / 100);
                 const invUSD = inv.exchangeRate > 0 ? inv.totalSYP / inv.exchangeRate : 0;
                 const isExpanded = expandedInvoiceId === inv.id;
                 return (
-                  <View style={[s.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Animated.View entering={FadeInDown.duration(220).delay(index < 8 ? index * 35 : 0)} style={[s.recordCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <TouchableOpacity
                       style={s.recordTop}
                       onPress={() => setExpandedInvoiceId(isExpanded ? null : inv.id)}
@@ -551,15 +557,16 @@ export default function CalculatorScreen() {
                         <Text style={{ fontFamily: 'Tajawal_400Regular', fontSize: 12, color: colors.mutedForeground }}>ل.س.ق</Text>
                       </Text>
                     </View>
-                  </View>
+                  </Animated.View>
                 );
               }}
             />
           )}
-        </View>
+        </Animated.View>
       )}
 
       {tab === 'stats' && (
+        <Animated.View entering={FadeIn.duration(220)} style={s.flex}>
         <ScrollView
           style={s.flex}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
@@ -626,6 +633,7 @@ export default function CalculatorScreen() {
             </>
           )}
         </ScrollView>
+        </Animated.View>
       )}
 
       {/* ── Customer Modal ── */}
@@ -739,25 +747,37 @@ export default function CalculatorScreen() {
       {/* ── Leave Without Save Modal ── */}
       <Modal visible={showLeaveModal} transparent animationType="fade" onRequestClose={() => setShowLeaveModal(false)}>
         <Pressable style={s.leaveBackdrop} onPress={() => setShowLeaveModal(false)}>
-          <Pressable>
-            <View style={[s.leaveBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[s.leaveIconWrap, { backgroundColor: colors.warning + '18' }]}>
-                <Ionicons name="warning-outline" size={30} color={colors.warning} />
-              </View>
-              <Text style={[s.leaveTitle, { color: colors.foreground }]}>مغادرة الفاتورة؟</Text>
-              <Text style={[s.leaveMsg, { color: colors.mutedForeground }]}>
-                الفاتورة الحالية تحتوي على {items.length} عنصر غير محفوظ. هل تريد المغادرة بدون حفظ؟
-              </Text>
-              <View style={s.leaveBtns}>
+          <Animated.View entering={FadeIn.duration(200)}>
+            <Pressable>
+              <View style={[s.leaveBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[s.leaveIconWrap, { backgroundColor: colors.warning + '18' }]}>
+                  <Ionicons name="warning-outline" size={30} color={colors.warning} />
+                </View>
+                <Text style={[s.leaveTitle, { color: colors.foreground }]}>مغادرة الفاتورة؟</Text>
+                <Text style={[s.leaveMsg, { color: colors.mutedForeground }]}>
+                  الفاتورة تحتوي على {items.length} عنصر غير محفوظ
+                </Text>
+
+                {/* حفظ ثم مغادرة */}
                 <TouchableOpacity
-                  style={[s.leaveBtn, { backgroundColor: colors.secondary, borderColor: colors.border, borderWidth: 1 }]}
-                  onPress={() => setShowLeaveModal(false)}
-                  activeOpacity={0.8}
+                  style={[s.leaveActionBtn, { backgroundColor: colors.primary }]}
+                  onPress={async () => {
+                    setShowLeaveModal(false);
+                    await handleSaveInvoice();
+                    if (pendingNavRef.current) {
+                      pendingNavRef.current();
+                      pendingNavRef.current = null;
+                    }
+                  }}
+                  activeOpacity={0.85}
                 >
-                  <Text style={[s.leaveBtnTxt, { color: colors.foreground }]}>البقاء</Text>
+                  <Ionicons name="checkmark-circle-outline" size={17} color="#fff" />
+                  <Text style={[s.leaveActionTxt, { color: '#fff' }]}>حفظ ثم مغادرة</Text>
                 </TouchableOpacity>
+
+                {/* مغادرة بدون حفظ */}
                 <TouchableOpacity
-                  style={[s.leaveBtn, { backgroundColor: '#FF3B30' }]}
+                  style={[s.leaveActionBtn, { backgroundColor: '#FF3B3010', borderWidth: 1.5, borderColor: '#FF3B3040' }]}
                   onPress={() => {
                     setShowLeaveModal(false);
                     if (pendingNavRef.current) {
@@ -767,26 +787,21 @@ export default function CalculatorScreen() {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.leaveBtnTxt, { color: '#fff' }]}>مغادرة</Text>
+                  <Ionicons name="exit-outline" size={17} color="#FF3B30" />
+                  <Text style={[s.leaveActionTxt, { color: '#FF3B30' }]}>مغادرة بدون حفظ</Text>
+                </TouchableOpacity>
+
+                {/* البقاء */}
+                <TouchableOpacity
+                  style={[s.leaveActionBtn, { backgroundColor: colors.secondary, borderWidth: 1, borderColor: colors.border }]}
+                  onPress={() => setShowLeaveModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.leaveActionTxt, { color: colors.mutedForeground }]}>البقاء</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={[s.leaveSaveBtn, { backgroundColor: colors.primary }]}
-                onPress={async () => {
-                  setShowLeaveModal(false);
-                  await handleSaveInvoice();
-                  if (pendingNavRef.current) {
-                    pendingNavRef.current();
-                    pendingNavRef.current = null;
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                <Text style={[s.leaveBtnTxt, { color: '#fff' }]}>حفظ ثم مغادرة</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
+            </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
     </View>
@@ -963,14 +978,16 @@ const s = StyleSheet.create({
   // Leave modal
   leaveBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   leaveBox: {
-    width: '100%', borderRadius: 20, borderWidth: 1, padding: 24, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 16,
+    width: '100%', borderRadius: 24, borderWidth: 1, padding: 24, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 18,
   },
   leaveIconWrap: { width: 64, height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  leaveTitle: { fontFamily: 'Tajawal_700Bold', fontSize: 18, marginBottom: 8, textAlign: 'center' },
-  leaveMsg: { fontFamily: 'Tajawal_400Regular', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
-  leaveBtns: { flexDirection: 'row', gap: 10, width: '100%', marginBottom: 10 },
-  leaveBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
-  leaveBtnTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 15 },
-  leaveSaveBtn: { width: '100%', borderRadius: 12, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  leaveTitle: { fontFamily: 'Tajawal_700Bold', fontSize: 18, marginBottom: 6, textAlign: 'center' },
+  leaveMsg: { fontFamily: 'Tajawal_400Regular', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 22, opacity: 0.7 },
+  leaveActionBtn: {
+    width: '100%', borderRadius: 14, paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    marginBottom: 10,
+  },
+  leaveActionTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 15 },
 });

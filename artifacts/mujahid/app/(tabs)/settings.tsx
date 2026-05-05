@@ -799,10 +799,10 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <Text style={[styles.backupRowTitle, { color: colors.foreground }]}>
-                {isExporting ? 'جاري التصدير...' : 'تصدير نسخة احتياطية'}
+                {isExporting ? 'جاري الحفظ...' : 'حفظ نسخة في الجهاز'}
               </Text>
               <Text style={[styles.backupRowSub, { color: colors.mutedForeground }]}>
-                حفظ ملف JSON على الجهاز ومشاركته
+                احفظ ملف النسخة الاحتياطية في جهازك
               </Text>
             </View>
             <Ionicons name="chevron-back" size={16} color={colors.silver} />
@@ -820,10 +820,10 @@ export default function SettingsScreen() {
             </View>
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <Text style={[styles.backupRowTitle, { color: colors.foreground }]}>
-                {isImporting ? 'جاري الاستعادة...' : 'استعادة من ملف'}
+                {isImporting ? 'جاري الاستيراد...' : 'استيراد نسخة من الجهاز'}
               </Text>
               <Text style={[styles.backupRowSub, { color: colors.mutedForeground }]}>
-                استيراد نسخة احتياطية سابقة
+                استيراد ملف نسخة احتياطية من جهازك
               </Text>
             </View>
             <Ionicons name="chevron-back" size={16} color={colors.silver} />
@@ -1118,24 +1118,6 @@ export default function SettingsScreen() {
                 اختر ماذا تريد تضمينه في النسخة الاحتياطية
               </Text>
 
-              {/* بدون فواتير */}
-              <TouchableOpacity
-                style={[styles.backupChoiceBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                onPress={() => handleExport(false)}
-                activeOpacity={0.85}
-              >
-                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.primary + '18' }]}>
-                  <Ionicons name="cube-outline" size={22} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>بدون فواتير</Text>
-                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
-                    {products.length} منتج • {categories.length} قسم فقط
-                  </Text>
-                </View>
-                <Ionicons name="chevron-back" size={18} color={colors.silver} />
-              </TouchableOpacity>
-
               {/* مع الفواتير */}
               <TouchableOpacity
                 style={[styles.backupChoiceBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primary + '0A' }]}
@@ -1152,6 +1134,24 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
                 <Ionicons name="chevron-back" size={18} color={colors.primary} />
+              </TouchableOpacity>
+
+              {/* بدون فواتير */}
+              <TouchableOpacity
+                style={[styles.backupChoiceBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                onPress={() => handleExport(false)}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.backupChoiceIcon, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name="cube-outline" size={22} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text style={[styles.backupChoiceTitle, { color: colors.foreground }]}>بدون فواتير</Text>
+                  <Text style={[styles.backupChoiceSub, { color: colors.mutedForeground }]}>
+                    {products.length} منتج • {categories.length} قسم فقط
+                  </Text>
+                </View>
+                <Ionicons name="chevron-back" size={18} color={colors.silver} />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1610,7 +1610,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderWidth: 1.5, borderRadius: 16, padding: 14, marginBottom: 10,
   },
-  backupChoiceTitle: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  backupChoiceTitle: { fontSize: 13, fontFamily: 'Tajawal_700Bold' },
   backupChoiceSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', marginTop: 2 },
   backupChoiceIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   backupCancelBtn: { height: 46, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
