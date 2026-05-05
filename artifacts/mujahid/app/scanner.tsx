@@ -183,10 +183,9 @@ export default function ScannerScreen() {
         invoiceStore.addItem({ productId: found.id, name: found.name, unitPriceSYP: found.sellingPriceSYP });
         setLastAddedName(found.name);
         setTimeout(() => {
-          setScanned(false);
-          setLastCode(null);
-          setLastAddedName(null);
-        }, 1400);
+          isNavigating.current = true;
+          router.back();
+        }, 700);
       } else {
         setUnknownBarcode(data);
         setShowUnknownModal(true);

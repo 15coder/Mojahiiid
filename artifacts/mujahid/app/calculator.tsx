@@ -78,7 +78,8 @@ export default function CalculatorScreen() {
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    return searchProducts(searchQuery, products).slice(0, 7);
+    if (products.length === 0) return [];
+    return searchProducts(searchQuery, products).slice(0, 8);
   }, [searchQuery, products]);
 
   function openCustomerModal() {
@@ -144,7 +145,9 @@ export default function CalculatorScreen() {
     store.addItem({ productId: product.id, name: product.name, unitPriceSYP: product.sellingPriceSYP });
     setSearchQuery('');
     searchRef.current?.blur();
+    setTab('invoice');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showToast({ message: `✓ أُضيف: ${product.name}`, type: 'success' });
   }
 
   const stats = store.getStats(statsPeriod);
@@ -272,17 +275,13 @@ export default function CalculatorScreen() {
 
           {/* Search dropdown */}
           {searchResults.length > 0 && (
-            <Animated.View
-              entering={FadeIn}
-              exiting={FadeOut}
-              style={[s.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}
-            >
+            <View style={[s.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {searchResults.map(product => (
                 <TouchableOpacity
                   key={product.id}
                   style={[s.dropRow, { borderBottomColor: colors.border }]}
                   onPress={() => addFromSearch(product)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.65}
                 >
                   <View style={[s.addIcon, { backgroundColor: colors.primary + '18' }]}>
                     <Ionicons name="add" size={18} color={colors.primary} />
@@ -295,72 +294,76 @@ export default function CalculatorScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
-            </Animated.View>
+            </View>
           )}
 
           {/* Items or empty state */}
           {store.items.length === 0 ? (
-            <Animated.View entering={FadeIn} style={s.empty}>
+            <View style={s.empty}>
               <View style={[s.emptyIcon, { backgroundColor: colors.secondary }]}>
                 <Ionicons name="receipt-outline" size={50} color={colors.primary} />
               </View>
               <Text style={[s.emptyTitle, { color: colors.foreground }]}>فاتورة #{store.number} فارغة</Text>
               <Text style={[s.emptySub, { color: colors.mutedForeground }]}>امسح باركود أو ابحث عن منتج</Text>
-            </Animated.View>
+            </View>
           ) : (
             <ScrollView
               style={s.flex}
-              contentContainerStyle={{ padding: 12, paddingBottom: 108 }}
-              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ padding: 12, paddingBottom: 120 }}
+              keyboardShouldPersistTaps="always"
               showsVerticalScrollIndicator={false}
             >
               {store.items.map(item => {
                 const lineTotal = item.unitPriceSYP * item.qty;
                 return (
-                  <Animated.View key={item.productId} entering={FadeIn}>
-                    <View style={[s.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <View style={s.itemRow}>
+                  <View key={item.productId} style={[s.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={s.itemRow}>
+                      <TouchableOpacity
+                        style={s.trashBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                        onPress={() => { store.removeItem(item.productId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        activeOpacity={0.6}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+
+                      <View style={[s.qtyBox, { borderColor: colors.border }]}>
                         <TouchableOpacity
-                          style={s.trashBtn}
-                          onPress={() => { store.removeItem(item.productId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                          style={s.qtyBtn}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 6 }}
+                          activeOpacity={0.5}
+                          onPress={() => { store.updateQty(item.productId, item.qty - 1); Haptics.selectionAsync(); }}
                         >
-                          <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-                        </TouchableOpacity>
-
-                        <View style={[s.qtyBox, { borderColor: colors.border }]}>
-                          <TouchableOpacity
-                            style={s.qtyBtn}
-                            onPress={() => { store.updateQty(item.productId, item.qty - 1); Haptics.selectionAsync(); }}
-                          >
-                            <Text style={[s.qtyBtnTxt, { color: item.qty === 1 ? '#FF3B30' : colors.primary }]}>
-                              {item.qty === 1 ? '×' : '−'}
-                            </Text>
-                          </TouchableOpacity>
-                          <Text style={[s.qtyNum, { color: colors.foreground }]}>{item.qty}</Text>
-                          <TouchableOpacity
-                            style={s.qtyBtn}
-                            onPress={() => { store.updateQty(item.productId, item.qty + 1); Haptics.selectionAsync(); }}
-                          >
-                            <Text style={[s.qtyBtnTxt, { color: colors.primary }]}>+</Text>
-                          </TouchableOpacity>
-                        </View>
-
-                        <View style={s.itemInfo}>
-                          <Text style={[s.itemName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
-                          <Text style={[s.itemUnitPrice, { color: colors.mutedForeground }]}>
-                            {fmtSYP(item.unitPriceSYP)} ل.س.ق × {item.qty}
+                          <Text style={[s.qtyBtnTxt, { color: item.qty === 1 ? '#FF3B30' : colors.primary }]}>
+                            {item.qty === 1 ? '×' : '−'}
                           </Text>
-                        </View>
+                        </TouchableOpacity>
+                        <Text style={[s.qtyNum, { color: colors.foreground }]}>{item.qty}</Text>
+                        <TouchableOpacity
+                          style={s.qtyBtn}
+                          hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+                          activeOpacity={0.5}
+                          onPress={() => { store.updateQty(item.productId, item.qty + 1); Haptics.selectionAsync(); }}
+                        >
+                          <Text style={[s.qtyBtnTxt, { color: colors.primary }]}>+</Text>
+                        </TouchableOpacity>
                       </View>
 
-                      <View style={[s.itemFooter, { borderTopColor: colors.border }]}>
-                        <Text style={[s.itemTotalLbl, { color: colors.mutedForeground }]}>الإجمالي</Text>
-                        <Text style={[s.itemTotalVal, { color: colors.primary }]}>
-                          {fmtSYP(lineTotal)} ل.س.ق
+                      <View style={s.itemInfo}>
+                        <Text style={[s.itemName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
+                        <Text style={[s.itemUnitPrice, { color: colors.mutedForeground }]}>
+                          {fmtSYP(item.unitPriceSYP)} ل.س.ق × {item.qty}
                         </Text>
                       </View>
                     </View>
-                  </Animated.View>
+
+                    <View style={[s.itemFooter, { borderTopColor: colors.border }]}>
+                      <Text style={[s.itemTotalLbl, { color: colors.mutedForeground }]}>الإجمالي</Text>
+                      <Text style={[s.itemTotalVal, { color: colors.primary }]}>
+                        {fmtSYP(lineTotal)} ل.س.ق
+                      </Text>
+                    </View>
+                  </View>
                 );
               })}
             </ScrollView>
@@ -635,9 +638,10 @@ const s = StyleSheet.create({
 
   // Search dropdown
   dropdown: {
-    position: 'absolute', top: 60, left: 10, right: 10, zIndex: 200,
-    borderRadius: 12, borderWidth: 1, overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 10,
+    position: 'absolute', top: 62, left: 10, right: 10, zIndex: 999,
+    borderRadius: 12, borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10,
+    elevation: 20,
   },
   dropRow: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10,
@@ -658,10 +662,10 @@ const s = StyleSheet.create({
   itemCard: { borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: 'hidden' },
   itemRow: { flexDirection: 'row', alignItems: 'center', padding: 11, gap: 9 },
   trashBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FF3B3010', alignItems: 'center', justifyContent: 'center' },
-  qtyBox: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, borderWidth: 1, overflow: 'hidden' },
-  qtyBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  qtyBtnTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 18 },
-  qtyNum: { width: 30, textAlign: 'center', fontFamily: 'Tajawal_700Bold', fontSize: 15 },
+  qtyBox: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, borderWidth: 1 },
+  qtyBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  qtyBtnTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 20 },
+  qtyNum: { minWidth: 34, textAlign: 'center', fontFamily: 'Tajawal_700Bold', fontSize: 16 },
   itemInfo: { flex: 1, alignItems: 'flex-end' },
   itemName: { fontFamily: 'Tajawal_700Bold', fontSize: 15 },
   itemUnitPrice: { fontFamily: 'Tajawal_400Regular', fontSize: 12, marginTop: 2 },
