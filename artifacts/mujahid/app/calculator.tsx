@@ -4,8 +4,10 @@ import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated as RNAnimated,
   FlatList,
   Keyboard,
+  PanResponder,
   Platform,
   Modal,
   Pressable,
@@ -645,8 +647,11 @@ export default function CalculatorScreen() {
       >
         <Pressable style={s.backdrop} onPress={() => { Keyboard.dismiss(); setShowCustomerModal(false); }}>
           <Pressable>
-            <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}>
-              <View style={[s.handle, { backgroundColor: colors.border }]} />
+            <SwipeSheet
+              onClose={() => { Keyboard.dismiss(); setShowCustomerModal(false); }}
+              sheetStyle={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}
+              handleColor={colors.border}
+            >
               <Text style={[s.panelTitle, { color: colors.foreground }]}>معلومات الزبون</Text>
 
               <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم الزبون</Text>
@@ -684,7 +689,7 @@ export default function CalculatorScreen() {
                   <Text style={s.modalSaveTxt}>حفظ</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </SwipeSheet>
           </Pressable>
         </Pressable>
       </Modal>
@@ -698,8 +703,11 @@ export default function CalculatorScreen() {
       >
         <Pressable style={s.backdrop} onPress={() => { Keyboard.dismiss(); setShowAddItemModal(false); }}>
           <Pressable>
-            <View style={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}>
-              <View style={[s.handle, { backgroundColor: colors.border }]} />
+            <SwipeSheet
+              onClose={() => { Keyboard.dismiss(); setShowAddItemModal(false); }}
+              sheetStyle={[s.panel, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: kbHeight }]}
+              handleColor={colors.border}
+            >
               <Text style={[s.panelTitle, { color: colors.foreground }]}>إضافة عنصر مخصص</Text>
 
               <Text style={[s.fieldLbl, { color: colors.mutedForeground }]}>اسم العنصر</Text>
@@ -739,7 +747,7 @@ export default function CalculatorScreen() {
                   <Text style={s.modalSaveTxt}>إضافة</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </SwipeSheet>
           </Pressable>
         </Pressable>
       </Modal>
@@ -805,6 +813,45 @@ export default function CalculatorScreen() {
         </Pressable>
       </Modal>
     </View>
+  );
+}
+
+function SwipeSheet({
+  onClose, sheetStyle, handleColor, children,
+}: {
+  onClose: () => void; sheetStyle: any; handleColor: string; children: React.ReactNode;
+}) {
+  const translateY = useRef(new RNAnimated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 3 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 80 || g.vy > 0.5) {
+          RNAnimated.timing(translateY, { toValue: 700, duration: 220, useNativeDriver: true }).start(() => {
+            translateY.setValue(0);
+            onCloseRef.current();
+          });
+        } else {
+          RNAnimated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <RNAnimated.View style={[sheetStyle, { transform: [{ translateY }] }]}>
+      <View {...panResponder.panHandlers} style={s.dragHandleZone}>
+        <View style={[s.dragHandleBar, { backgroundColor: handleColor }]} />
+      </View>
+      {children}
+    </RNAnimated.View>
   );
 }
 
@@ -954,14 +1001,17 @@ const s = StyleSheet.create({
   statsInvName: { flex: 1, fontFamily: 'Tajawal_400Regular', fontSize: 13, textAlign: 'right' },
   statsInvTotal: { fontFamily: 'Tajawal_700Bold', fontSize: 13 },
 
+  // Swipe-to-dismiss handle
+  dragHandleZone: { paddingTop: 10, paddingBottom: 6, alignItems: 'center' },
+  dragHandleBar: { width: 40, height: 4, borderRadius: 2 },
+
   // Customer/Add Item modal
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'flex-end' },
   panel: {
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
     borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1,
-    padding: 22, paddingBottom: 38,
+    paddingHorizontal: 22, paddingBottom: 38,
   },
-  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   panelTitle: { fontFamily: 'Tajawal_700Bold', fontSize: 18, textAlign: 'center', marginBottom: 20 },
   fieldLbl: { fontFamily: 'Tajawal_500Medium', fontSize: 13, textAlign: 'right', marginBottom: 6 },
   fieldInput: {

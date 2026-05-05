@@ -6,10 +6,12 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
+  Animated as RNAnimated,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -1024,9 +1026,12 @@ export default function SettingsScreen() {
         onRequestClose={() => setActiveModal('deleteCatStep1')}
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setActiveModal('deleteCatStep1')}>
-          <View style={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Pressable onPress={() => {}}>
-              <View style={[styles.modalHandle, { backgroundColor: colors.border, alignSelf: 'center' }]} />
+          <Pressable onPress={() => {}}>
+            <SwipeableSheetWrapper
+              onClose={() => setActiveModal('deleteCatStep1')}
+              sheetStyle={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}
+              handleColor={colors.border}
+            >
               <Text style={[styles.modalTitle, { color: colors.foreground }]}>اختر القسم الهدف</Text>
               <Text style={[styles.confirmMsg, { color: colors.mutedForeground, marginBottom: 12 }]}>
                 سيتم نقل جميع منتجات "{deletingCat?.name}" إلى:
@@ -1071,8 +1076,8 @@ export default function SettingsScreen() {
                   <Text style={[styles.confirmBtnText, { color: '#fff' }]}>نقل وحذف</Text>
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </View>
+            </SwipeableSheetWrapper>
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -1109,8 +1114,11 @@ export default function SettingsScreen() {
       >
         <Pressable style={styles.sheetBackdrop} onPress={() => setActiveModal('none')}>
           <Pressable onPress={() => {}}>
-            <View style={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={{ width: 38, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: 20 }} />
+            <SwipeableSheetWrapper
+              onClose={() => setActiveModal('none')}
+              sheetStyle={[styles.sheetPanel, { backgroundColor: colors.card, borderColor: colors.border }]}
+              handleColor={colors.border}
+            >
               <Text style={{ fontSize: 17, fontFamily: 'Tajawal_700Bold', color: colors.foreground, textAlign: 'center', marginBottom: 6 }}>
                 نسخة احتياطية
               </Text>
@@ -1161,7 +1169,7 @@ export default function SettingsScreen() {
               >
                 <Text style={[styles.backupCancelText, { color: colors.mutedForeground }]}>إلغاء</Text>
               </TouchableOpacity>
-            </View>
+            </SwipeableSheetWrapper>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1433,6 +1441,45 @@ function ConfirmModal({
   );
 }
 
+function SwipeableSheetWrapper({
+  onClose, sheetStyle, handleColor, children,
+}: {
+  onClose: () => void; sheetStyle: any; handleColor: string; children: React.ReactNode;
+}) {
+  const translateY = useRef(new RNAnimated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 3 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 80 || g.vy > 0.5) {
+          RNAnimated.timing(translateY, { toValue: 700, duration: 220, useNativeDriver: true }).start(() => {
+            translateY.setValue(0);
+            onCloseRef.current();
+          });
+        } else {
+          RNAnimated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <RNAnimated.View style={[sheetStyle, { transform: [{ translateY }] }]}>
+      <View {...panResponder.panHandlers} style={styles.dragHandleZone}>
+        <View style={[styles.dragHandleBar, { backgroundColor: handleColor }]} />
+      </View>
+      {children}
+    </RNAnimated.View>
+  );
+}
+
 function BottomSheetModal({
   visible, onClose, colors, title, children,
 }: {
@@ -1446,11 +1493,11 @@ function BottomSheetModal({
         keyboardVerticalOffset={0}
       >
         <Pressable style={styles.modalBackdropFlex} onPress={onClose} />
-        <Pressable
-          style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => {}}
+        <SwipeableSheetWrapper
+          onClose={onClose}
+          sheetStyle={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}
+          handleColor={colors.border}
         >
-          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
           <Text style={[styles.modalTitle, { color: colors.foreground }]}>{title}</Text>
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -1459,7 +1506,7 @@ function BottomSheetModal({
           >
             {children}
           </ScrollView>
-        </Pressable>
+        </SwipeableSheetWrapper>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -1626,11 +1673,13 @@ const styles = StyleSheet.create({
   deleteCatOptionSub: { fontSize: 11, fontFamily: 'Tajawal_400Regular', textAlign: 'right' },
   autoLockPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   autoLockPillText: { fontSize: 13, fontFamily: 'Tajawal_500Medium' },
+  dragHandleZone: { paddingTop: 12, paddingBottom: 8, alignItems: 'center' },
+  dragHandleBar: { width: 40, height: 4, borderRadius: 2 },
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetPanel: {
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     borderWidth: 1, borderBottomWidth: 0,
-    padding: 20, paddingBottom: 40,
+    paddingHorizontal: 20, paddingBottom: 40,
   },
   targetCatRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -1644,7 +1693,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     borderWidth: 1,
     borderBottomWidth: 0,
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 32,
     maxHeight: '85%',
   },
