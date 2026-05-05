@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useProducts } from '@/context/ProductsContext';
 import { useColors } from '@/hooks/useColors';
+import { invoiceStore } from '@/utils/invoiceStore';
 import { setScanResult } from '@/utils/scanResult';
 
 const CORNER_COLOR = '#4B7BF5';
@@ -51,8 +52,12 @@ export default function ScannerScreen() {
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
   const [showUnknownModal, setShowUnknownModal] = useState(false);
 
+  // Calculator mode
+  const [lastAddedName, setLastAddedName] = useState<string | null>(null);
+
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const returnTo = params.returnTo;
+  const isCalculatorMode = returnTo === 'calculator';
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -159,7 +164,7 @@ export default function ScannerScreen() {
     playBeep();
     saveRecentBarcode(data);
 
-    if (returnTo === 'add' || returnTo === 'calculator') {
+    if (returnTo === 'add') {
       isNavigating.current = true;
       setScanned(true);
       setLastCode(data);
@@ -167,6 +172,29 @@ export default function ScannerScreen() {
         setScanResult(data);
         router.back();
       }, 280);
+      return;
+    }
+
+    if (isCalculatorMode) {
+      setScanned(true);
+      setLastCode(data);
+      const found = products.find((p) => p.barcode === data);
+      if (found) {
+        invoiceStore.addItem({ productId: found.id, name: found.name, unitPriceSYP: found.sellingPriceSYP });
+        setLastAddedName(found.name);
+        setTimeout(() => {
+          setScanned(false);
+          setLastCode(null);
+          setLastAddedName(null);
+        }, 1400);
+      } else {
+        setUnknownBarcode(data);
+        setShowUnknownModal(true);
+        setTimeout(() => {
+          setScanned(false);
+          setLastCode(null);
+        }, 200);
+      }
       return;
     }
 
@@ -252,6 +280,11 @@ export default function ScannerScreen() {
             >
               <Ionicons name={flashOn ? 'flash' : 'flash-outline'} size={22} color={flashOn ? '#FFD700' : '#fff'} />
             </TouchableOpacity>
+            {isCalculatorMode && (
+              <TouchableOpacity style={styles.doneBtn} onPress={() => router.back()} activeOpacity={0.85}>
+                <Text style={styles.doneBtnText}>تم ✓</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -279,8 +312,14 @@ export default function ScannerScreen() {
         ) : (
           /* Frame area */
           <View style={styles.scanFrame}>
-            <Text style={styles.scanLabel}>
-              {scanned ? 'جاري المعالجة...' : 'وجّه الكاميرا نحو الباركود'}
+            <Text style={[styles.scanLabel, lastAddedName ? styles.scanLabelSuccess : null]}>
+              {lastAddedName
+                ? `✓ أُضيف: ${lastAddedName}`
+                : scanned
+                ? 'جاري المعالجة...'
+                : isCalculatorMode
+                ? 'امسح باركود المنتج لإضافته للفاتورة'
+                : 'وجّه الكاميرا نحو الباركود'}
             </Text>
 
             <View style={[styles.scanAreaContainer, { width: FRAME_W, height: FRAME_H }]}>
@@ -309,7 +348,7 @@ export default function ScannerScreen() {
               </View>
             )}
 
-            {scanned && !showUnknownModal && (
+            {scanned && !showUnknownModal && !isCalculatorMode && (
               <TouchableOpacity
                 style={styles.rescanBtn}
                 onPress={() => { setScanned(false); setLastCode(null); isNavigating.current = false; }}
@@ -554,6 +593,7 @@ const styles = StyleSheet.create({
   },
   zoomText: { color: '#fff', fontSize: 12, fontFamily: 'Tajawal_700Bold' },
   hintText: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: 'Tajawal_500Medium', textAlign: 'center' },
+  scanLabelSuccess: { color: '#4ADE80', fontFamily: 'Tajawal_700Bold' },
   noSupportText: { fontSize: 16, fontFamily: 'Tajawal_500Medium', textAlign: 'center' },
   closeBtn: { paddingHorizontal: 32, paddingVertical: 12, borderRadius: 12 },
   closeBtnText: { fontSize: 16, fontFamily: 'Tajawal_700Bold' },
