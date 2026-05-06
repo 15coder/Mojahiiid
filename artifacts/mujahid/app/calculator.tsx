@@ -222,6 +222,7 @@ export default function CalculatorScreen() {
   const stats = store.getStats(statsPeriod);
 
   const items = store.items;
+  const displayedInvoiceCount = store.savedInvoices.length - (pendingDeleteInvoice ? 1 : 0);
 
   if (!store.isLoaded) {
     return (
@@ -250,7 +251,7 @@ export default function CalculatorScreen() {
         {(
           [
             { id: 'invoice', label: 'الفاتورة', icon: 'receipt-outline' },
-            { id: 'records', label: 'الفواتير', icon: 'time-outline', badge: store.savedInvoices.length },
+            { id: 'records', label: 'الفواتير', icon: 'time-outline', badge: displayedInvoiceCount },
             { id: 'stats', label: 'إحصائيات', icon: 'stats-chart-outline' },
           ] as const
         ).map(t => {
