@@ -6,7 +6,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   BackHandler,
   Modal,
   Platform,
@@ -65,6 +64,7 @@ export default function EditProductScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showImageSourceModal, setShowImageSourceModal] = useState(false);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const selectedCategory = visibleCategories.find((c) => c.id === categoryId);
@@ -208,16 +208,7 @@ export default function EditProductScreen() {
   }
 
   function pickImages() {
-    Alert.alert(
-      'إضافة صورة',
-      'اختر مصدر الصورة',
-      [
-        { text: 'الكاميرا', onPress: pickFromCamera },
-        { text: 'معرض الصور', onPress: pickFromGallery },
-        { text: 'إلغاء', style: 'cancel' },
-      ],
-      { cancelable: true }
-    );
+    setShowImageSourceModal(true);
   }
 
   function removeImage(idx: number) {
@@ -500,6 +491,55 @@ export default function EditProductScreen() {
         </Pressable>
       </Modal>
 
+      {/* Image Source Picker Modal */}
+      <Modal visible={showImageSourceModal} transparent animationType="slide" onRequestClose={() => setShowImageSourceModal(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowImageSourceModal(false)}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>إضافة صورة</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.mutedForeground }]}>اختر مصدر الصورة</Text>
+
+            <TouchableOpacity
+              style={[styles.imageSourceOption, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+              onPress={() => { setShowImageSourceModal(false); setTimeout(pickFromCamera, 300); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.imageSourceIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="camera-outline" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.imageSourceInfo}>
+                <Text style={[styles.imageSourceTitle, { color: colors.foreground }]}>الكاميرا</Text>
+                <Text style={[styles.imageSourceSub, { color: colors.mutedForeground }]}>التقط صورة جديدة</Text>
+              </View>
+              <Ionicons name="chevron-back" size={18} color={colors.silver} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.imageSourceOption, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+              onPress={() => { setShowImageSourceModal(false); setTimeout(pickFromGallery, 300); }}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.imageSourceIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="images-outline" size={24} color={colors.primary} />
+              </View>
+              <View style={styles.imageSourceInfo}>
+                <Text style={[styles.imageSourceTitle, { color: colors.foreground }]}>معرض الصور</Text>
+                <Text style={[styles.imageSourceSub, { color: colors.mutedForeground }]}>اختر من صورك الموجودة</Text>
+              </View>
+              <Ionicons name="chevron-back" size={18} color={colors.silver} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.imageSourceCancel, { borderColor: colors.border }]}
+              onPress={() => setShowImageSourceModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.imageSourceCancelText, { color: colors.mutedForeground }]}>إلغاء</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
       {/* Discard Changes Modal */}
       <Modal visible={showDiscardModal} transparent animationType="fade" onRequestClose={() => setShowDiscardModal(false)}>
         <Pressable style={styles.discardOverlay} onPress={() => setShowDiscardModal(false)}>
@@ -597,7 +637,21 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, padding: 20, maxHeight: '70%' },
   modalHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 17, fontFamily: 'Tajawal_700Bold', textAlign: 'center', marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, fontFamily: 'Tajawal_400Regular', textAlign: 'center', marginBottom: 20 },
+  imageSourceOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10,
+  },
+  imageSourceIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  imageSourceInfo: { flex: 1, alignItems: 'flex-end', gap: 2 },
+  imageSourceTitle: { fontSize: 15, fontFamily: 'Tajawal_700Bold' },
+  imageSourceSub: { fontSize: 12, fontFamily: 'Tajawal_400Regular' },
+  imageSourceCancel: {
+    marginTop: 4, borderRadius: 14, borderWidth: 1,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  imageSourceCancelText: { fontSize: 15, fontFamily: 'Tajawal_500Medium' },
   categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
   catOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   catOptionText: { flex: 1, fontSize: 15, fontFamily: 'Tajawal_500Medium', textAlign: 'right' },
