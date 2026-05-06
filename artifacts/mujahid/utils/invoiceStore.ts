@@ -207,12 +207,19 @@ export const invoiceStore = {
 
 export function useInvoiceStore() {
   const [tick, setTick] = useState(0);
+  const [savedInvoices, setSavedInvoices] = useState<SavedInvoice[]>(() => invoiceStore.getSaved());
+  const [draftSnapshot, setDraftSnapshot] = useState(() => invoiceStore.getDraft());
+  const [isLoaded, setIsLoaded] = useState(() => invoiceStore.isLoaded());
   const alive = useRef(true);
 
   useEffect(() => {
     alive.current = true;
     const unsub = invoiceStore.subscribe(() => {
-      if (alive.current) setTick(t => t + 1);
+      if (!alive.current) return;
+      setTick(t => t + 1);
+      setSavedInvoices([...invoiceStore.getSaved()]);
+      setDraftSnapshot({ ...invoiceStore.getDraft() });
+      setIsLoaded(invoiceStore.isLoaded());
     });
     if (!invoiceStore.isLoaded()) invoiceStore.load();
     return () => {
@@ -221,18 +228,15 @@ export function useInvoiceStore() {
     };
   }, []);
 
-  const draft = invoiceStore.getDraft();
-  const saved = invoiceStore.getSaved();
-
   return {
     tick,
-    isLoaded: invoiceStore.isLoaded(),
-    items: draft.items,
-    customerName: draft.customerName,
-    notes: draft.notes,
-    number: draft.number,
-    totalSYP: draft.items.reduce((s, i) => s + i.unitPriceSYP * i.qty, 0),
-    savedInvoices: saved,
+    isLoaded,
+    items: draftSnapshot.items,
+    customerName: draftSnapshot.customerName,
+    notes: draftSnapshot.notes,
+    number: draftSnapshot.number,
+    totalSYP: draftSnapshot.items.reduce((s, i) => s + i.unitPriceSYP * i.qty, 0),
+    savedInvoices,
     addItem: (item: Omit<InvoiceItem, 'qty'>) => invoiceStore.addItem(item),
     updateQty: (id: string, qty: number) => invoiceStore.updateQty(id, qty),
     removeItem: (id: string) => invoiceStore.removeItem(id),
