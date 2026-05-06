@@ -6,6 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   BackHandler,
   Modal,
   Platform,
@@ -180,7 +181,20 @@ export default function EditProductScreen() {
     }
   }
 
-  async function pickImages() {
+  async function pickFromCamera() {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      showToast({ message: 'يرجى السماح للتطبيق بالوصول إلى الكاميرا', type: 'error' });
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    if (!result.canceled && result.assets.length > 0) {
+      const uris = result.assets.map((a) => a.uri);
+      setImages((prev) => [...prev, ...uris].slice(0, 5));
+    }
+  }
+
+  async function pickFromGallery() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       showToast({ message: 'يرجى السماح للتطبيق بالوصول إلى الصور', type: 'error' });
@@ -191,6 +205,19 @@ export default function EditProductScreen() {
       const uris = result.assets.map((a) => a.uri);
       setImages((prev) => [...prev, ...uris].slice(0, 5));
     }
+  }
+
+  function pickImages() {
+    Alert.alert(
+      'إضافة صورة',
+      'اختر مصدر الصورة',
+      [
+        { text: 'الكاميرا', onPress: pickFromCamera },
+        { text: 'معرض الصور', onPress: pickFromGallery },
+        { text: 'إلغاء', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   }
 
   function removeImage(idx: number) {

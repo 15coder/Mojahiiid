@@ -60,6 +60,8 @@ export default function CalculatorScreen() {
   const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+  const [pendingDeleteInvoice, setPendingDeleteInvoice] = useState<SavedInvoice | null>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
@@ -160,16 +162,41 @@ export default function CalculatorScreen() {
       setSaving(true);
       await store.saveInvoice(exchangeRate);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast({ message: 'تم حفظ الفاتورة بنجاح', type: 'success' });
       setTab('records');
       setTimeout(() => {
         recordsListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }, 120);
+      }, 80);
+      showToast({ message: 'تم حفظ الفاتورة بنجاح ✓', type: 'success' });
     } catch {
       showToast({ message: 'فشل حفظ الفاتورة', type: 'error' });
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleDeleteInvoice(inv: SavedInvoice) {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      if (pendingDeleteInvoice) {
+        store.deleteSaved(pendingDeleteInvoice.id);
+      }
+    }
+    setPendingDeleteInvoice(inv);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    deleteTimerRef.current = setTimeout(() => {
+      store.deleteSaved(inv.id);
+      setPendingDeleteInvoice(null);
+      deleteTimerRef.current = null;
+    }, 5000);
+  }
+
+  function handleUndoDelete() {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
+    }
+    setPendingDeleteInvoice(null);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
   async function handlePdf(inv: SavedInvoice) {
@@ -459,7 +486,7 @@ export default function CalculatorScreen() {
           ) : (
             <FlatList
               ref={recordsListRef}
-              data={store.savedInvoices}
+              data={store.savedInvoices.filter(i => i.id !== pendingDeleteInvoice?.id)}
               keyExtractor={i => i.id}
               extraData={store.tick}
               contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 20 }}
@@ -478,7 +505,7 @@ export default function CalculatorScreen() {
                       <View style={s.recordActions}>
                         <TouchableOpacity
                           style={[s.recBtn, { backgroundColor: '#FF3B3010' }]}
-                          onPress={() => { store.deleteSaved(inv.id); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }}
+                          onPress={() => handleDeleteInvoice(inv)}
                           hitSlop={6}
                         >
                           <Ionicons name="trash-outline" size={16} color="#FF3B30" />
@@ -563,6 +590,22 @@ export default function CalculatorScreen() {
                 );
               }}
             />
+          )}
+          {/* Undo delete bar */}
+          {pendingDeleteInvoice && (
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(180)}
+              style={[s.undoBar, { backgroundColor: colors.foreground, bottom: insets.bottom + 12 }]}
+            >
+              <TouchableOpacity style={s.undoBtn} onPress={handleUndoDelete} activeOpacity={0.8}>
+                <Text style={[s.undoBtnTxt, { color: colors.primary }]}>تراجع</Text>
+              </TouchableOpacity>
+              <Text style={[s.undoTxt, { color: colors.background }]}>
+                تم حذف فاتورة #{pendingDeleteInvoice.number}
+              </Text>
+              <Ionicons name="trash-outline" size={16} color={colors.background + 'AA'} />
+            </Animated.View>
           )}
         </Animated.View>
       )}
@@ -1000,6 +1043,17 @@ const s = StyleSheet.create({
   statsInvNum: { fontFamily: 'Tajawal_700Bold', fontSize: 14, width: 44 },
   statsInvName: { flex: 1, fontFamily: 'Tajawal_400Regular', fontSize: 13, textAlign: 'right' },
   statsInvTotal: { fontFamily: 'Tajawal_700Bold', fontSize: 13 },
+
+  // Undo delete bar
+  undoBar: {
+    position: 'absolute', left: 16, right: 16, borderRadius: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 13,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
+  },
+  undoTxt: { fontFamily: 'Tajawal_500Medium', fontSize: 14, flex: 1, textAlign: 'right', marginHorizontal: 10 },
+  undoBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6 },
+  undoBtnTxt: { fontFamily: 'Tajawal_700Bold', fontSize: 14 },
 
   // Swipe-to-dismiss handle
   dragHandleZone: { paddingTop: 10, paddingBottom: 6, alignItems: 'center' },
